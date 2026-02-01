@@ -99,10 +99,10 @@ const positions = await portfolio.getPositions();
 └─────────────────┘     └─────────────────────┘     └──────────────┘
                                ▲
                                │ (trading only)
-                        ┌──────┴────────┐
-                        │ Operator Wallet│
-                        │ (Hot Wallet)   │
-                        └───────────────┘
+                        ┌──────┴──────────┐
+                        │ Operator Wallet │
+                        │  (Hot Wallet)   │
+                        └─────────────────┘
 ```
 
 - **Owner**: Full control — deploy, withdraw, add/remove operators

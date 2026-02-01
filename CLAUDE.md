@@ -188,6 +188,5 @@ const positions = await portfolio.getPositions();
 
 ## References
 
-- DelegatedAccount contract: `/Users/pbj/claude/delegated-account/`
-- Exchange ABI: `/Users/pbj/claude/dex-sdk/abi/dex/Exchange.json`
-- Rust trading examples: `/Users/pbj/claude/dex-sdk-examples/`
+- [delegated-account](https://github.com/PerplFoundation/delegated-account) — Owner/operator smart contract
+- [dex-sdk](https://github.com/PerplFoundation/dex-sdk) — Perpl exchange SDK and ABIs

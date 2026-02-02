@@ -282,3 +282,467 @@ describe("Order Factory Functions", () => {
     expect(order.orderType).toBe(OrderType.CloseShort);
   });
 });
+
+describe("All Order Types with OrderBuilder", () => {
+  // Test all order types from OrderType enum
+  const perpId = 16n; // BTC
+
+  describe("Open Orders", () => {
+    it("builds OpenLong with all options", () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .openLong()
+        .price(50000)
+        .lot(0.1)
+        .leverage(10)
+        .postOnly()
+        .expiry(1000000n)
+        .maxMatches(5n)
+        .build();
+
+      expect(order.orderType).toBe(OrderType.OpenLong);
+      expect(order.postOnly).toBe(true);
+      expect(order.expiryBlock).toBe(1000000n);
+      expect(order.maxMatches).toBe(5n);
+    });
+
+    it("builds OpenShort with IOC (market order)", () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .openShort()
+        .price(50000)
+        .lot(0.1)
+        .leverage(5)
+        .immediateOrCancel()
+        .build();
+
+      expect(order.orderType).toBe(OrderType.OpenShort);
+      expect(order.immediateOrCancel).toBe(true);
+      expect(order.postOnly).toBe(false);
+    });
+
+    it("builds OpenLong with fill-or-kill", () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .openLong()
+        .price(50000)
+        .lot(0.5)
+        .leverage(3)
+        .fillOrKill()
+        .build();
+
+      expect(order.orderType).toBe(OrderType.OpenLong);
+      expect(order.fillOrKill).toBe(true);
+    });
+  });
+
+  describe("Close Orders", () => {
+    it("builds CloseLong limit order", () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .closeLong()
+        .price(55000)
+        .lot(0.1)
+        .leverage(1)
+        .build();
+
+      expect(order.orderType).toBe(OrderType.CloseLong);
+      expect(order.pricePNS).toBe(55000000000n);
+    });
+
+    it("builds CloseShort market order (IOC)", () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .closeShort()
+        .price(48000)
+        .lot(0.1)
+        .leverage(1)
+        .immediateOrCancel()
+        .build();
+
+      expect(order.orderType).toBe(OrderType.CloseShort);
+      expect(order.immediateOrCancel).toBe(true);
+    });
+
+    it("builds CloseLong with post-only", () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .closeLong()
+        .price(52000)
+        .lot(0.05)
+        .leverage(1)
+        .postOnly()
+        .build();
+
+      expect(order.orderType).toBe(OrderType.CloseLong);
+      expect(order.postOnly).toBe(true);
+    });
+  });
+
+  describe("Cancel Order", () => {
+    it("builds Cancel order with order ID", () => {
+      const orderId = 12345n;
+      const order = OrderBuilder.forPerp(perpId)
+        .cancel(orderId)
+        .pricePNS(0n)
+        .lotLNS(0n)
+        .build();
+
+      expect(order.orderType).toBe(OrderType.Cancel);
+      expect(order.orderId).toBe(orderId);
+      expect(order.pricePNS).toBe(0n);
+      expect(order.lotLNS).toBe(0n);
+    });
+  });
+
+  describe("Change Order", () => {
+    it("builds Change order to modify price", () => {
+      const orderId = 67890n;
+      const order = OrderBuilder.forPerp(perpId)
+        .change(orderId)
+        .price(51000) // New price
+        .lot(0.1) // Same size
+        .leverage(10)
+        .build();
+
+      expect(order.orderType).toBe(OrderType.Change);
+      expect(order.orderId).toBe(orderId);
+      expect(order.pricePNS).toBe(51000000000n);
+    });
+
+    it("builds Change order to modify size", () => {
+      const orderId = 11111n;
+      const order = OrderBuilder.forPerp(perpId)
+        .change(orderId)
+        .price(50000)
+        .lot(0.2) // New size
+        .leverage(10)
+        .build();
+
+      expect(order.orderType).toBe(OrderType.Change);
+      expect(order.lotLNS).toBe(20000000n);
+    });
+  });
+});
+
+describe("All Markets", () => {
+  // Test order construction for each market
+  const markets = {
+    BTC: { perpId: 16n, typicalPrice: 50000, typicalSize: 0.001 },
+    ETH: { perpId: 32n, typicalPrice: 3000, typicalSize: 0.01 },
+    SOL: { perpId: 48n, typicalPrice: 100, typicalSize: 1 },
+    MON: { perpId: 64n, typicalPrice: 1, typicalSize: 100 },
+    ZEC: { perpId: 256n, typicalPrice: 30, typicalSize: 1 },
+  };
+
+  Object.entries(markets).forEach(([name, { perpId, typicalPrice, typicalSize }]) => {
+    describe(`${name} Market (perpId: ${perpId})`, () => {
+      it(`creates limit long for ${name}`, () => {
+        const order = limitLong({
+          perpId,
+          price: typicalPrice * 0.95, // 5% below
+          size: typicalSize,
+          leverage: 5,
+          postOnly: true,
+        });
+
+        expect(order.perpId).toBe(perpId);
+        expect(order.orderType).toBe(OrderType.OpenLong);
+        expect(order.postOnly).toBe(true);
+      });
+
+      it(`creates limit short for ${name}`, () => {
+        const order = limitShort({
+          perpId,
+          price: typicalPrice * 1.05, // 5% above
+          size: typicalSize,
+          leverage: 5,
+          postOnly: true,
+        });
+
+        expect(order.perpId).toBe(perpId);
+        expect(order.orderType).toBe(OrderType.OpenShort);
+      });
+
+      it(`creates market long for ${name}`, () => {
+        const order = marketLong({
+          perpId,
+          price: typicalPrice * 1.1, // Max price
+          size: typicalSize,
+          leverage: 3,
+        });
+
+        expect(order.perpId).toBe(perpId);
+        expect(order.orderType).toBe(OrderType.OpenLong);
+        expect(order.immediateOrCancel).toBe(true);
+      });
+
+      it(`creates market short for ${name}`, () => {
+        const order = marketShort({
+          perpId,
+          price: typicalPrice * 0.9, // Min price
+          size: typicalSize,
+          leverage: 3,
+        });
+
+        expect(order.perpId).toBe(perpId);
+        expect(order.orderType).toBe(OrderType.OpenShort);
+        expect(order.immediateOrCancel).toBe(true);
+      });
+
+      it(`creates close long for ${name}`, () => {
+        const order = closePosition({
+          perpId,
+          isLong: true,
+          price: typicalPrice * 1.05,
+          size: typicalSize,
+        });
+
+        expect(order.perpId).toBe(perpId);
+        expect(order.orderType).toBe(OrderType.CloseLong);
+      });
+
+      it(`creates close short for ${name}`, () => {
+        const order = closePosition({
+          perpId,
+          isLong: false,
+          price: typicalPrice * 0.95,
+          size: typicalSize,
+        });
+
+        expect(order.perpId).toBe(perpId);
+        expect(order.orderType).toBe(OrderType.CloseShort);
+      });
+    });
+  });
+});
+
+describe("Order Execution Modes", () => {
+  const perpId = 16n;
+
+  describe("Post-Only Orders", () => {
+    it("creates post-only limit long", () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .openLong()
+        .price(45000)
+        .lot(0.1)
+        .leverage(10)
+        .postOnly(true)
+        .build();
+
+      expect(order.postOnly).toBe(true);
+      expect(order.fillOrKill).toBe(false);
+      expect(order.immediateOrCancel).toBe(false);
+    });
+
+    it("can disable post-only explicitly", () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .openLong()
+        .price(45000)
+        .lot(0.1)
+        .leverage(10)
+        .postOnly(false)
+        .build();
+
+      expect(order.postOnly).toBe(false);
+    });
+  });
+
+  describe("Fill-or-Kill Orders", () => {
+    it("creates FOK order that must fill completely", () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .openLong()
+        .price(45000)
+        .lot(1)
+        .leverage(5)
+        .fillOrKill(true)
+        .build();
+
+      expect(order.fillOrKill).toBe(true);
+      expect(order.postOnly).toBe(false);
+      expect(order.immediateOrCancel).toBe(false);
+    });
+  });
+
+  describe("Immediate-or-Cancel (IOC/Market) Orders", () => {
+    it("creates IOC long (market buy)", () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .openLong()
+        .price(46000) // Max price
+        .lot(0.1)
+        .leverage(10)
+        .immediateOrCancel(true)
+        .build();
+
+      expect(order.immediateOrCancel).toBe(true);
+      expect(order.postOnly).toBe(false);
+      expect(order.fillOrKill).toBe(false);
+    });
+
+    it("creates IOC short (market sell)", () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .openShort()
+        .price(44000) // Min price
+        .lot(0.1)
+        .leverage(10)
+        .immediateOrCancel(true)
+        .build();
+
+      expect(order.immediateOrCancel).toBe(true);
+    });
+
+    it("creates IOC close long (market close)", () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .closeLong()
+        .price(44000) // Min price for closing long
+        .lot(0.1)
+        .leverage(1)
+        .immediateOrCancel(true)
+        .build();
+
+      expect(order.orderType).toBe(OrderType.CloseLong);
+      expect(order.immediateOrCancel).toBe(true);
+    });
+
+    it("creates IOC close short (market close)", () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .closeShort()
+        .price(46000) // Max price for closing short
+        .lot(0.1)
+        .leverage(1)
+        .immediateOrCancel(true)
+        .build();
+
+      expect(order.orderType).toBe(OrderType.CloseShort);
+      expect(order.immediateOrCancel).toBe(true);
+    });
+  });
+
+  describe("Default Limit Orders", () => {
+    it("creates standard limit order with all flags false", () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .openLong()
+        .price(44000)
+        .lot(0.1)
+        .leverage(10)
+        .build();
+
+      expect(order.postOnly).toBe(false);
+      expect(order.fillOrKill).toBe(false);
+      expect(order.immediateOrCancel).toBe(false);
+    });
+  });
+});
+
+describe("Leverage Variations", () => {
+  const perpId = 16n;
+
+  const leverageLevels = [1, 2, 3, 5, 10, 20, 50, 100];
+
+  leverageLevels.forEach((lev) => {
+    it(`creates order with ${lev}x leverage`, () => {
+      const order = OrderBuilder.forPerp(perpId)
+        .openLong()
+        .price(50000)
+        .lot(0.1)
+        .leverage(lev)
+        .build();
+
+      expect(order.leverageHdths).toBe(BigInt(lev * 100));
+    });
+  });
+
+  it("handles fractional leverage", () => {
+    const order = OrderBuilder.forPerp(perpId)
+      .openLong()
+      .price(50000)
+      .lot(0.1)
+      .leverage(1.5)
+      .build();
+
+    expect(order.leverageHdths).toBe(150n);
+  });
+});
+
+describe("Price Decimals Handling", () => {
+  const perpId = 16n;
+
+  it("uses default 6 decimals", () => {
+    const order = limitLong({
+      perpId,
+      price: 50000,
+      size: 0.1,
+      leverage: 10,
+    });
+
+    expect(order.pricePNS).toBe(50000000000n); // 50000 * 10^6
+  });
+
+  it("uses custom price decimals", () => {
+    const order = limitLong({
+      perpId,
+      price: 50000,
+      size: 0.1,
+      leverage: 10,
+      priceDecimals: 8n,
+    });
+
+    expect(order.pricePNS).toBe(5000000000000n); // 50000 * 10^8
+  });
+
+  it("uses custom lot decimals", () => {
+    const order = limitLong({
+      perpId,
+      price: 50000,
+      size: 0.1,
+      leverage: 10,
+      lotDecimals: 6n,
+    });
+
+    expect(order.lotLNS).toBe(100000n); // 0.1 * 10^6
+  });
+});
+
+describe("Edge Cases", () => {
+  const perpId = 16n;
+
+  it("handles very small lot sizes", () => {
+    const order = OrderBuilder.forPerp(perpId)
+      .openLong()
+      .price(50000)
+      .lot(0.00000001) // Smallest unit
+      .leverage(10)
+      .build();
+
+    expect(order.lotLNS).toBe(1n);
+  });
+
+  it("handles very large prices", () => {
+    const order = OrderBuilder.forPerp(perpId)
+      .openLong()
+      .price(1000000) // $1M
+      .lot(0.001)
+      .leverage(1)
+      .build();
+
+    expect(order.pricePNS).toBe(1000000000000n);
+  });
+
+  it("handles zero expiry (no expiry)", () => {
+    const order = OrderBuilder.forPerp(perpId)
+      .openLong()
+      .price(50000)
+      .lot(0.1)
+      .leverage(10)
+      .expiry(0n)
+      .build();
+
+    expect(order.expiryBlock).toBe(0n);
+  });
+
+  it("handles amountCNS for collateral operations", () => {
+    const order = OrderBuilder.forPerp(perpId)
+      .openLong()
+      .price(50000)
+      .lot(0.1)
+      .leverage(10)
+      .amountCNS(100000000n) // 100 USD
+      .build();
+
+    expect(order.amountCNS).toBe(100000000n);
+  });
+});

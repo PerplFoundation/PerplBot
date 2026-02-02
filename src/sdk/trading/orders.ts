@@ -8,9 +8,10 @@ import { type OrderDesc, OrderType, type PerpetualInfo } from "../contracts/Exch
 /**
  * Price precision constants
  * PNS = Price Normalized Scale (exchange internal format)
+ * Note: These are the actual values from the Perpl testnet exchange
  */
-export const PRICE_DECIMALS = 6n; // Standard price decimals
-export const LOT_DECIMALS = 8n; // Standard lot decimals
+export const PRICE_DECIMALS = 1n; // Price decimals (from getPerpetualInfo)
+export const LOT_DECIMALS = 5n; // Lot decimals (from getPerpetualInfo)
 export const LEVERAGE_DECIMALS = 2n; // Leverage in hundredths (100 = 1x)
 
 /**

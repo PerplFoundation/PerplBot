@@ -248,12 +248,12 @@ export function registerManageCommand(program: Command): void {
           );
 
           if (position.lotLNS > 0n) {
-            const size = Number(position.lotLNS) / 1e8;
-            const entryPrice = Number(position.pricePNS) / 1e6;
-            const currentPrice = Number(markPrice) / 1e6;
-            const pnl = Number(position.pnlCNS) / 1e6;
+            const size = Number(position.lotLNS) / 1e5; // lotDecimals = 5
+            const entryPrice = Number(position.pricePNS) / 1e1; // priceDecimals = 1
+            const currentPrice = Number(markPrice) / 1e1; // priceDecimals = 1
+            const pnl = Number(position.pnlCNS) / 1e6; // collateralDecimals = 6
 
-            const posType = position.positionType === 1 ? "LONG" : "SHORT";
+            const posType = Number(position.positionType) === 0 ? "LONG" : "SHORT";
 
             console.log(`\n${name}:`);
             console.log(`  Type: ${posType}`);

@@ -23,15 +23,17 @@ import { OrderType } from "../src/sdk/contracts/Exchange.js";
 
 describe("Price Conversions", () => {
   it("converts price to PNS format", () => {
-    expect(priceToPNS(45000)).toBe(45000000000n);
-    expect(priceToPNS(0.5)).toBe(500000n);
-    expect(priceToPNS(100.123456)).toBe(100123456n);
+    // With PRICE_DECIMALS=1: price * 10^1
+    expect(priceToPNS(45000)).toBe(450000n);
+    expect(priceToPNS(0.5)).toBe(5n);
+    expect(priceToPNS(100.1)).toBe(1001n);
   });
 
   it("converts PNS to human-readable price", () => {
-    expect(pnsToPrice(45000000000n)).toBe(45000);
-    expect(pnsToPrice(500000n)).toBe(0.5);
-    expect(pnsToPrice(100123456n)).toBeCloseTo(100.123456);
+    // With PRICE_DECIMALS=1: pns / 10^1
+    expect(pnsToPrice(450000n)).toBe(45000);
+    expect(pnsToPrice(5n)).toBe(0.5);
+    expect(pnsToPrice(1001n)).toBeCloseTo(100.1);
   });
 
   it("handles custom decimal precision", () => {
@@ -42,15 +44,17 @@ describe("Price Conversions", () => {
 
 describe("Lot Conversions", () => {
   it("converts lot to LNS format", () => {
-    expect(lotToLNS(1)).toBe(100000000n);
-    expect(lotToLNS(0.1)).toBe(10000000n);
-    expect(lotToLNS(0.00001)).toBe(1000n);
+    // With LOT_DECIMALS=5: lot * 10^5
+    expect(lotToLNS(1)).toBe(100000n);
+    expect(lotToLNS(0.1)).toBe(10000n);
+    expect(lotToLNS(0.00001)).toBe(1n);
   });
 
   it("converts LNS to human-readable lot", () => {
-    expect(lnsToLot(100000000n)).toBe(1);
-    expect(lnsToLot(10000000n)).toBe(0.1);
-    expect(lnsToLot(1000n)).toBe(0.00001);
+    // With LOT_DECIMALS=5: lns / 10^5
+    expect(lnsToLot(100000n)).toBe(1);
+    expect(lnsToLot(10000n)).toBe(0.1);
+    expect(lnsToLot(1n)).toBe(0.00001);
   });
 });
 
@@ -81,8 +85,8 @@ describe("OrderBuilder", () => {
 
     expect(order.perpId).toBe(perpId);
     expect(order.orderType).toBe(OrderType.OpenLong);
-    expect(order.pricePNS).toBe(45000000000n);
-    expect(order.lotLNS).toBe(10000000n);
+    expect(order.pricePNS).toBe(450000n); // 45000 * 10^1
+    expect(order.lotLNS).toBe(10000n); // 0.1 * 10^5
     expect(order.leverageHdths).toBe(1000n);
     expect(order.postOnly).toBe(false);
   });
@@ -110,7 +114,7 @@ describe("OrderBuilder", () => {
       .build();
 
     expect(order.orderType).toBe(OrderType.CloseLong);
-    expect(order.pricePNS).toBe(46000000000n);
+    expect(order.pricePNS).toBe(460000n); // 46000 * 10^1
   });
 
   it("builds a close short order", () => {
@@ -343,7 +347,7 @@ describe("All Order Types with OrderBuilder", () => {
         .build();
 
       expect(order.orderType).toBe(OrderType.CloseLong);
-      expect(order.pricePNS).toBe(55000000000n);
+      expect(order.pricePNS).toBe(550000n); // 55000 * 10^1
     });
 
     it("builds CloseShort market order (IOC)", () => {
@@ -401,7 +405,7 @@ describe("All Order Types with OrderBuilder", () => {
 
       expect(order.orderType).toBe(OrderType.Change);
       expect(order.orderId).toBe(orderId);
-      expect(order.pricePNS).toBe(51000000000n);
+      expect(order.pricePNS).toBe(510000n); // 51000 * 10^1
     });
 
     it("builds Change order to modify size", () => {
@@ -414,7 +418,7 @@ describe("All Order Types with OrderBuilder", () => {
         .build();
 
       expect(order.orderType).toBe(OrderType.Change);
-      expect(order.lotLNS).toBe(20000000n);
+      expect(order.lotLNS).toBe(20000n); // 0.2 * 10^5
     });
   });
 });
@@ -661,7 +665,7 @@ describe("Leverage Variations", () => {
 describe("Price Decimals Handling", () => {
   const perpId = 16n;
 
-  it("uses default 6 decimals", () => {
+  it("uses default decimals", () => {
     const order = limitLong({
       perpId,
       price: 50000,
@@ -669,7 +673,7 @@ describe("Price Decimals Handling", () => {
       leverage: 10,
     });
 
-    expect(order.pricePNS).toBe(50000000000n); // 50000 * 10^6
+    expect(order.pricePNS).toBe(500000n); // 50000 * 10^1
   });
 
   it("uses custom price decimals", () => {
@@ -704,11 +708,11 @@ describe("Edge Cases", () => {
     const order = OrderBuilder.forPerp(perpId)
       .openLong()
       .price(50000)
-      .lot(0.00000001) // Smallest unit
+      .lot(0.00001) // Smallest unit with LOT_DECIMALS=5
       .leverage(10)
       .build();
 
-    expect(order.lotLNS).toBe(1n);
+    expect(order.lotLNS).toBe(1n); // 0.00001 * 10^5 = 1
   });
 
   it("handles very large prices", () => {
@@ -719,7 +723,7 @@ describe("Edge Cases", () => {
       .leverage(1)
       .build();
 
-    expect(order.pricePNS).toBe(1000000000000n);
+    expect(order.pricePNS).toBe(10000000n); // 1000000 * 10^1
   });
 
   it("handles zero expiry (no expiry)", () => {

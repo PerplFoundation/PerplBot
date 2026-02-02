@@ -26,11 +26,11 @@ export enum OrderType {
 
 /**
  * Position type enum matching contract PositionEnum
+ * Note: 0=Long, 1=Short based on actual exchange behavior
  */
 export enum PositionType {
-  None = 0,
-  Long = 1,
-  Short = 2,
+  Long = 0,
+  Short = 1,
 }
 
 /**

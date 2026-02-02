@@ -20,8 +20,8 @@ export enum OrderType {
   OpenShort = 1,
   CloseLong = 2,
   CloseShort = 3,
-  Change = 4,
-  Cancel = 5,
+  Cancel = 4,  // dex-sdk: 4 => Cancel
+  Change = 5,  // dex-sdk: 5 => Change (modify order)
 }
 
 /**

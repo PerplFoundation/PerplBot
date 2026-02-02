@@ -561,4 +561,43 @@ export const ExchangeAbi = [
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
   },
+  // Order query functions
+  {
+    type: "function",
+    name: "getOrderIdIndex",
+    inputs: [{ name: "perpId", type: "uint256" }],
+    outputs: [
+      { name: "root", type: "uint256" },
+      { name: "leaves", type: "uint256[]" },
+      { name: "numOrders", type: "uint256" },
+    ],
+    stateMutability: "view",
+  },
+  {
+    type: "function",
+    name: "getOrder",
+    inputs: [
+      { name: "perpId", type: "uint256" },
+      { name: "orderId", type: "uint256" },
+    ],
+    outputs: [
+      {
+        name: "order",
+        type: "tuple",
+        components: [
+          { name: "accountId", type: "uint32" },
+          { name: "orderType", type: "uint8" },
+          { name: "priceONS", type: "uint24" },
+          { name: "lotLNS", type: "uint40" },
+          { name: "recycleFeeRaw", type: "uint16" },
+          { name: "expiryBlock", type: "uint32" },
+          { name: "leverageHdths", type: "uint16" },
+          { name: "orderId", type: "uint16" },
+          { name: "prevOrderId", type: "uint16" },
+          { name: "nextOrderId", type: "uint16" },
+        ],
+      },
+    ],
+    stateMutability: "view",
+  },
 ] as const;

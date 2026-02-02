@@ -176,4 +176,125 @@ export function registerTradeCommand(program: Command): void {
         process.exit(1);
       }
     });
+
+  // Cancel order
+  trade
+    .command("cancel")
+    .description("Cancel an existing order")
+    .requiredOption("--perp <name>", "Perpetual (btc, eth, sol, mon, zec)")
+    .requiredOption("--order-id <id>", "Order ID to cancel")
+    .action(async (options) => {
+      const config = loadEnvConfig();
+      validateOwnerConfig(config);
+
+      const owner = OwnerWallet.fromPrivateKey(
+        config.ownerPrivateKey,
+        config.chain
+      );
+
+      const exchange = new Exchange(
+        config.chain.exchangeAddress,
+        owner.publicClient,
+        owner.walletClient
+      );
+
+      const perpId = resolvePerpId(options.perp);
+      const orderId = BigInt(options.orderId);
+
+      console.log(`Cancelling order ${orderId} on perp ${perpId}...`);
+
+      const orderDesc: OrderDesc = {
+        orderDescId: 0n,
+        perpId,
+        orderType: OrderType.Cancel,
+        orderId,
+        pricePNS: 0n,
+        lotLNS: 0n,
+        expiryBlock: 0n,
+        postOnly: false,
+        fillOrKill: false,
+        immediateOrCancel: false,
+        maxMatches: 0n,
+        leverageHdths: 0n,
+        lastExecutionBlock: 0n,
+        amountCNS: 0n,
+      };
+
+      try {
+        const txHash = await exchange.execOrder(orderDesc);
+        console.log(`\nTransaction submitted: ${txHash}`);
+      } catch (error) {
+        console.error("Cancel failed:", error);
+        process.exit(1);
+      }
+    });
+
+  // Cancel all orders
+  trade
+    .command("cancel-all")
+    .description("Cancel all open orders on a market")
+    .requiredOption("--perp <name>", "Perpetual (btc, eth, sol, mon, zec)")
+    .action(async (options) => {
+      const config = loadEnvConfig();
+      validateOwnerConfig(config);
+
+      const owner = OwnerWallet.fromPrivateKey(
+        config.ownerPrivateKey,
+        config.chain
+      );
+
+      const exchange = new Exchange(
+        config.chain.exchangeAddress,
+        owner.publicClient,
+        owner.walletClient
+      );
+
+      const accountInfo = await exchange.getAccountByAddress(owner.address);
+      const accountId = accountInfo.accountId;
+
+      const perpId = resolvePerpId(options.perp);
+
+      console.log(`Fetching open orders for perp ${perpId}...`);
+      console.log(`Account ID: ${accountId}`);
+
+      const orders = await exchange.getOpenOrders(perpId, accountId);
+
+      if (orders.length === 0) {
+        console.log("No open orders found.");
+        return;
+      }
+
+      console.log(`Found ${orders.length} order(s) to cancel: ${orders.map(o => o.orderId).join(", ")}`);
+
+      let cancelled = 0;
+      for (const order of orders) {
+        const orderDesc: OrderDesc = {
+          orderDescId: 0n,
+          perpId,
+          orderType: OrderType.Cancel,
+          orderId: order.orderId,
+          pricePNS: 0n,
+          lotLNS: 0n,
+          expiryBlock: 0n,
+          postOnly: false,
+          fillOrKill: false,
+          immediateOrCancel: false,
+          maxMatches: 0n,
+          leverageHdths: 0n,
+          lastExecutionBlock: 0n,
+          amountCNS: 0n,
+        };
+
+        try {
+          console.log(`Cancelling order ${order.orderId}...`);
+          const txHash = await exchange.execOrder(orderDesc);
+          console.log(`  Tx: ${txHash}`);
+          cancelled++;
+        } catch (e: any) {
+          console.log(`  Failed: ${e.shortMessage || e.message}`);
+        }
+      }
+
+      console.log(`\nCancelled ${cancelled}/${orders.length} orders.`);
+    });
 }

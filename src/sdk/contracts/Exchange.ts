@@ -332,6 +332,113 @@ export class Exchange {
     }) as Promise<bigint>;
   }
 
+  /**
+   * Get order ID index for a perpetual (bitmap of active order IDs)
+   */
+  async getOrderIdIndex(perpId: bigint): Promise<{
+    root: bigint;
+    leaves: readonly bigint[];
+    numOrders: bigint;
+  }> {
+    const [root, leaves, numOrders] = (await this.publicClient.readContract({
+      address: this.address,
+      abi: ExchangeAbi,
+      functionName: "getOrderIdIndex",
+      args: [perpId],
+    })) as [bigint, readonly bigint[], bigint];
+
+    return { root, leaves, numOrders };
+  }
+
+  /**
+   * Get order details by ID
+   */
+  async getOrder(perpId: bigint, orderId: bigint): Promise<{
+    accountId: number;
+    orderType: number;
+    priceONS: number;
+    lotLNS: bigint;
+    recycleFeeRaw: number;
+    expiryBlock: number;
+    leverageHdths: number;
+    orderId: number;
+    prevOrderId: number;
+    nextOrderId: number;
+  }> {
+    const result = (await this.publicClient.readContract({
+      address: this.address,
+      abi: ExchangeAbi,
+      functionName: "getOrder",
+      args: [perpId, orderId],
+    })) as any;
+
+    return {
+      accountId: Number(result.accountId),
+      orderType: Number(result.orderType),
+      priceONS: Number(result.priceONS),
+      lotLNS: BigInt(result.lotLNS),
+      recycleFeeRaw: Number(result.recycleFeeRaw),
+      expiryBlock: Number(result.expiryBlock),
+      leverageHdths: Number(result.leverageHdths),
+      orderId: Number(result.orderId),
+      prevOrderId: Number(result.prevOrderId),
+      nextOrderId: Number(result.nextOrderId),
+    };
+  }
+
+  /**
+   * Get all open orders for an account on a perpetual
+   */
+  async getOpenOrders(perpId: bigint, accountId: bigint): Promise<Array<{
+    orderId: bigint;
+    accountId: number;
+    orderType: number;
+    priceONS: number;
+    lotLNS: bigint;
+    leverageHdths: number;
+  }>> {
+    const { leaves } = await this.getOrderIdIndex(perpId);
+    const orders: Array<{
+      orderId: bigint;
+      accountId: number;
+      orderType: number;
+      priceONS: number;
+      lotLNS: bigint;
+      leverageHdths: number;
+    }> = [];
+
+    // Each leaf is a 256-bit bitmap where each set bit represents an order ID
+    // The order ID is calculated as: leafIndex * 256 + bitPosition
+    for (let leafIndex = 0; leafIndex < leaves.length; leafIndex++) {
+      const leaf = leaves[leafIndex];
+      if (leaf === 0n) continue;
+
+      // Check each bit in the leaf
+      for (let bit = 0; bit < 256; bit++) {
+        if ((leaf >> BigInt(bit)) & 1n) {
+          const orderId = BigInt(leafIndex * 256 + bit);
+          try {
+            const order = await this.getOrder(perpId, orderId);
+            if (BigInt(order.accountId) === accountId && order.lotLNS > 0n) {
+              orders.push({
+                orderId,
+                accountId: order.accountId,
+                orderType: order.orderType,
+                priceONS: order.priceONS,
+                lotLNS: order.lotLNS,
+                leverageHdths: order.leverageHdths,
+              });
+            }
+          } catch {
+            // Order may have been cancelled/filled between getting index and fetching
+          }
+        }
+      }
+    }
+
+    return orders;
+  }
+
   // ============ Write Functions ============
   // These go through the DelegatedAccount if set
 

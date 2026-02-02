@@ -231,9 +231,7 @@ export function registerDelegateCommand(program: Command): void {
     .command("cancel-all")
     .description("Cancel all open orders on a market")
     .requiredOption("--perp <name>", "Perpetual (btc, eth, sol, mon, zec)")
-    .option("--blocks <num>", "Number of recent blocks to scan for orders", "1000")
     .action(async (options) => {
-      const { parseAbiItem } = await import("viem");
       const config = loadEnvConfig();
       validateOperatorConfig(config);
 
@@ -247,6 +245,11 @@ export function registerDelegateCommand(program: Command): void {
         config.delegatedAccountAddress
       );
 
+      const exchange = new Exchange(
+        config.chain.exchangeAddress,
+        operator.publicClient
+      );
+
       const delegatedAccount = new DelegatedAccount(
         config.delegatedAccountAddress,
         operator.publicClient
@@ -254,78 +257,24 @@ export function registerDelegateCommand(program: Command): void {
       const accountId = await delegatedAccount.getAccountId();
 
       const perpId = resolvePerpId(options.perp);
-      const blocksToScan = BigInt(options.blocks);
 
-      console.log(`Scanning last ${blocksToScan} blocks for orders on perp ${perpId}...`);
+      console.log(`Fetching open orders for perp ${perpId}...`);
       console.log(`Account ID: ${accountId}`);
 
-      const currentBlock = await operator.publicClient.getBlockNumber();
-      const startBlock = currentBlock - blocksToScan;
+      const orders = await exchange.getOpenOrders(perpId, accountId);
 
-      const orderRequestEvent = parseAbiItem(
-        "event OrderRequest(uint256 perpId, uint256 accountId, uint256 orderDescId, uint256 orderId, uint8 orderType, uint256 pricePNS, uint256 lotLNS, uint256 expiryBlock, bool postOnly, bool fillOrKill, bool immediateOrCancel, uint256 maxMatches, uint256 leverageHdths, uint256 gasLeft)"
-      );
-      const orderPlacedEvent = parseAbiItem(
-        "event OrderPlaced(uint256 orderId, uint256 lotLNS, uint256 lockedBalanceCNS, int256 amountCNS, uint256 balanceCNS)"
-      );
-
-      const BATCH_SIZE = 100n;
-      const requestLogs: any[] = [];
-      const placedLogs: any[] = [];
-
-      console.log("Scanning events...");
-      for (let fromBlock = startBlock; fromBlock < currentBlock; fromBlock += BATCH_SIZE) {
-        const toBlock = fromBlock + BATCH_SIZE - 1n > currentBlock ? currentBlock : fromBlock + BATCH_SIZE - 1n;
-
-        const [reqBatch, placedBatch] = await Promise.all([
-          operator.publicClient.getLogs({
-            address: config.chain.exchangeAddress,
-            event: orderRequestEvent,
-            fromBlock,
-            toBlock,
-          }),
-          operator.publicClient.getLogs({
-            address: config.chain.exchangeAddress,
-            event: orderPlacedEvent,
-            fromBlock,
-            toBlock,
-          }),
-        ]);
-        requestLogs.push(...reqBatch);
-        placedLogs.push(...placedBatch);
-      }
-
-      const ourRequests = requestLogs.filter(
-        (log) =>
-          log.args.accountId === accountId &&
-          log.args.perpId === perpId &&
-          (log.args.orderType === 0 || log.args.orderType === 1) &&
-          !log.args.immediateOrCancel
-      );
-
-      if (ourRequests.length === 0) {
-        console.log("No open orders found in recent blocks.");
+      if (orders.length === 0) {
+        console.log("No open orders found.");
         return;
       }
 
-      const txHashes = new Set(ourRequests.map((log) => log.transactionHash));
-      const orderIds = placedLogs
-        .filter((log) => txHashes.has(log.transactionHash) && log.args.orderId! > 0n)
-        .map((log) => log.args.orderId!);
-
-      const uniqueOrderIds = [...new Set(orderIds)];
-      if (uniqueOrderIds.length === 0) {
-        console.log("No order IDs found (orders may have been filled or cancelled).");
-        return;
-      }
-
-      console.log(`Found ${uniqueOrderIds.length} order(s) to cancel: ${uniqueOrderIds.join(", ")}`);
+      console.log(`Found ${orders.length} order(s) to cancel: ${orders.map(o => o.orderId).join(", ")}`);
 
       let cancelled = 0;
-      for (const orderId of uniqueOrderIds) {
+      for (const order of orders) {
         try {
-          console.log(`Cancelling order ${orderId}...`);
-          const txHash = await operator.cancelOrder(perpId, orderId);
+          console.log(`Cancelling order ${order.orderId}...`);
+          const txHash = await operator.cancelOrder(perpId, order.orderId);
           console.log(`  Tx: ${txHash}`);
           cancelled++;
         } catch (e: any) {
@@ -333,7 +282,7 @@ export function registerDelegateCommand(program: Command): void {
         }
       }
 
-      console.log(`\nCancelled ${cancelled}/${uniqueOrderIds.length} orders.`);
+      console.log(`\nCancelled ${cancelled}/${orders.length} orders.`);
     });
 
   // === MANAGE SUBCOMMANDS ===

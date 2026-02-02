@@ -109,12 +109,14 @@ PerplBot/
 - Exchange: `0x9C216D1Ab3e0407b3d6F1d5e9EfFe6d01C326ab7`
 - Collateral (USD stable): `0xdF5B718d8FcC173335185a2a1513eE8151e3c027`
 
-### Perpetual IDs
-- BTC: 0
-- ETH: 1
-- SOL: 2
-- MON: 3
-- ZEC: 4
+### Perpetual IDs (from dex-sdk testnet config)
+- BTC: 16
+- ETH: 32
+- SOL: 48
+- MON: 64
+- ZEC: 256
+
+Use `npx tsx scripts/check-markets.ts` to check market status.
 
 ## CLI Commands
 

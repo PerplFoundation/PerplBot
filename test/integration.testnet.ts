@@ -122,7 +122,8 @@ describe("Testnet Integration Tests", () => {
       // Try to fetch BTC perp info - may fail if market not configured
       try {
         const perpInfo = await exchange.getPerpetualInfo(PERPETUALS.BTC);
-        console.log(`  BTC Mark Price: $${pnsToPrice(perpInfo.markPricePNS)}`);
+        const markPrice = pnsToPrice(perpInfo.markPNS, perpInfo.priceDecimals);
+        console.log(`  BTC Mark Price: $${markPrice.toFixed(2)}`);
         expect(perpInfo).toBeDefined();
       } catch (e: any) {
         // Market may not exist on this exchange - that's okay
@@ -211,17 +212,34 @@ describe("Testnet Integration Tests", () => {
   describe("Order Execution", () => {
     it("should place a limit order (if market available)", async () => {
       // First check if the market is available
-      let markPrice: number;
+      let referencePrice: number;
+      let priceDecimals: bigint;
+      let lotDecimals: bigint;
       try {
         const perpInfo = await exchange.getPerpetualInfo(PERPETUALS.BTC);
-        markPrice = pnsToPrice(perpInfo.markPricePNS);
+        priceDecimals = perpInfo.priceDecimals;
+        lotDecimals = perpInfo.lotDecimals;
+        const markPrice = pnsToPrice(perpInfo.markPNS, priceDecimals);
+        const oraclePrice = pnsToPrice(perpInfo.oraclePNS, priceDecimals);
+
+        // Use mark price if available, otherwise oracle
+        if (markPrice > 0 && !isNaN(markPrice)) {
+          referencePrice = markPrice;
+          console.log(`  Using mark price: $${markPrice.toFixed(2)}`);
+        } else if (oraclePrice > 0) {
+          referencePrice = oraclePrice;
+          console.log(`  Using oracle price: $${oraclePrice.toFixed(2)}`);
+        } else {
+          console.log(`  No valid market price available`);
+          return;
+        }
       } catch (e) {
         console.log("  Skipping - BTC market not available");
         return;
       }
 
       // Place a limit order far from market (won't fill)
-      const bidPrice = markPrice * 0.70; // 30% below
+      const bidPrice = referencePrice * 0.70; // 30% below
 
       const order = limitLong({
         perpId: PERPETUALS.BTC,
@@ -229,6 +247,8 @@ describe("Testnet Integration Tests", () => {
         size: 0.001,
         leverage: 2,
         postOnly: true,
+        priceDecimals,
+        lotDecimals,
       });
 
       console.log(`  Placing limit long @ $${bidPrice.toFixed(2)}...`);

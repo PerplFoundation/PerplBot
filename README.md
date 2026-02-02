@@ -262,13 +262,17 @@ const positions = await portfolio.getPositions();
 
 ## Perpetual Markets
 
+Perpetual IDs from [dex-sdk testnet config](https://github.com/PerplFoundation/dex-sdk/blob/main/crates/sdk/src/lib.rs):
+
 | Market | Perp ID |
 |--------|---------|
-| BTC    | 0       |
-| ETH    | 1       |
-| SOL    | 2       |
-| MON    | 3       |
-| ZEC    | 4       |
+| BTC    | 16      |
+| ETH    | 32      |
+| SOL    | 48      |
+| MON    | 64      |
+| ZEC    | 256     |
+
+Use `npx tsx scripts/check-markets.ts` to check market status and prices.
 
 ## Configuration
 

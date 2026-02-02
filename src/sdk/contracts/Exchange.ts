@@ -110,6 +110,7 @@ export interface PerpetualInfo {
   shortOpenInterestLNS: bigint;
   fundingStartBlock: bigint;
   fundingRatePct100k: number;
+  synthPerpPricePNS: bigint;
   paused: boolean;
   basePricePNS: bigint;
 }
@@ -267,6 +268,7 @@ export class Exchange {
       shortOpenInterestLNS: result.shortOpenInterestLNS,
       fundingStartBlock: result.fundingStartBlock,
       fundingRatePct100k: result.fundingRatePct100k,
+      synthPerpPricePNS: result.synthPerpPricePNS,
       paused: result.paused,
       basePricePNS: result.basePricePNS,
     };

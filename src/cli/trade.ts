@@ -14,12 +14,13 @@ import {
   leverageToHdths,
 } from "../sdk/index.js";
 
+// Market name to ID mapping (IDs from dex-sdk testnet config)
 const PERP_NAMES: Record<string, bigint> = {
-  btc: PERPETUALS.BTC,
-  eth: PERPETUALS.ETH,
-  sol: PERPETUALS.SOL,
-  mon: PERPETUALS.MON,
-  zec: PERPETUALS.ZEC,
+  btc: PERPETUALS.BTC,   // 16
+  eth: PERPETUALS.ETH,   // 32
+  sol: PERPETUALS.SOL,   // 48
+  mon: PERPETUALS.MON,   // 64
+  zec: PERPETUALS.ZEC,   // 256
 };
 
 function resolvePerpId(perp: string): bigint {
@@ -32,7 +33,7 @@ function resolvePerpId(perp: string): bigint {
   if (!isNaN(parsed)) {
     return BigInt(parsed);
   }
-  throw new Error(`Unknown perpetual: ${perp}. Use btc, eth, sol, or a numeric ID.`);
+  throw new Error(`Unknown perpetual: ${perp}. Use btc (16), eth (32), sol (48), mon (64), zec (256), or a numeric ID.`);
 }
 
 export function registerTradeCommand(program: Command): void {

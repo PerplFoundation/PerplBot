@@ -13,16 +13,25 @@ import {
 import { getPositionSummary, type PositionSummary } from "../trading/positions.js";
 
 /**
- * Known perpetual IDs
- * These are the perpetual contract IDs on Perpl
+ * Known perpetual IDs from dex-sdk testnet config
+ * https://github.com/PerplFoundation/dex-sdk/blob/main/crates/sdk/src/lib.rs
+ *
+ * Note: Market symbols are determined on-chain via getPerpetualInfo()
+ * These IDs may need updating as the exchange evolves
  */
 export const PERPETUALS = {
-  BTC: 0n,
-  ETH: 1n,
-  SOL: 2n,
-  MON: 3n,
-  ZEC: 4n,
+  // IDs from dex-sdk testnet: [16, 32, 48, 64, 256]
+  BTC: 16n,
+  ETH: 32n,
+  SOL: 48n,
+  MON: 64n,
+  ZEC: 256n,
 } as const;
+
+/**
+ * All known perpetual IDs to scan
+ */
+export const ALL_PERP_IDS = [16n, 32n, 48n, 64n, 256n] as const;
 
 /**
  * Cached exchange state

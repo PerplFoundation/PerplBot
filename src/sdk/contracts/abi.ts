@@ -518,6 +518,7 @@ export const ExchangeAbi = [
           { name: "shortOpenInterestLNS", type: "uint256" },
           { name: "fundingStartBlock", type: "uint256" },
           { name: "fundingRatePct100k", type: "int16" },
+          { name: "synthPerpPricePNS", type: "uint256" },
           { name: "absFundingClampPctPer100K", type: "uint256" },
           { name: "paused", type: "bool" },
           { name: "basePricePNS", type: "uint256" },

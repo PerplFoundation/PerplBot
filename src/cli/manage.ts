@@ -121,7 +121,7 @@ export function registerManageCommand(program: Command): void {
   // Deposit collateral
   manage
     .command("deposit")
-    .description("Deposit collateral to exchange account")
+    .description("Deposit collateral to exchange account (creates account if needed)")
     .requiredOption("--amount <amount>", "Amount to deposit in USD stable")
     .action(async (options) => {
       const config = loadEnvConfig();
@@ -137,23 +137,48 @@ export function registerManageCommand(program: Command): void {
         config.chain
       );
 
-      owner.connect(config.delegatedAccountAddress);
+      const delegatedAccount = owner.connect(config.delegatedAccountAddress);
 
       const amount = parseFloat(options.amount);
       const amountCNS = BigInt(Math.round(amount * 1e6));
 
-      console.log(`Depositing ${amount} USD stable...`);
+      // Check if exchange account exists
+      const accountId = await delegatedAccount.getAccountId();
 
-      try {
-        const { transferHash, depositHash } = await owner.depositCollateral(
-          config.chain.collateralToken,
-          amountCNS
-        );
-        console.log(`Transfer tx: ${transferHash}`);
-        console.log(`Deposit tx: ${depositHash}`);
-      } catch (error) {
-        console.error("Deposit failed:", error);
-        process.exit(1);
+      if (accountId === 0n) {
+        // No account yet - create one with initial deposit
+        console.log(`Creating exchange account with ${amount} USD stable deposit...`);
+
+        try {
+          const { transferHash, createHash } = await owner.createExchangeAccount(
+            config.chain.collateralToken,
+            amountCNS
+          );
+          console.log(`Transfer tx: ${transferHash}`);
+          console.log(`Create account tx: ${createHash}`);
+
+          // Get the new account ID
+          const newAccountId = await delegatedAccount.getAccountId();
+          console.log(`Exchange account created with ID: ${newAccountId}`);
+        } catch (error) {
+          console.error("Account creation failed:", error);
+          process.exit(1);
+        }
+      } else {
+        // Account exists - deposit additional collateral
+        console.log(`Depositing ${amount} USD stable to account ${accountId}...`);
+
+        try {
+          const { transferHash, depositHash } = await owner.depositCollateral(
+            config.chain.collateralToken,
+            amountCNS
+          );
+          console.log(`Transfer tx: ${transferHash}`);
+          console.log(`Deposit tx: ${depositHash}`);
+        } catch (error) {
+          console.error("Deposit failed:", error);
+          process.exit(1);
+        }
       }
     });
 

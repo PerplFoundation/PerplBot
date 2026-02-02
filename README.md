@@ -295,7 +295,10 @@ DELEGATED_ACCOUNT_ADDRESS=your_deployed_address
 | `npm run dev -- <cmd>` | Run CLI commands in development mode |
 | `npm run build` | Build TypeScript to dist/ |
 | `npm run typecheck` | Type check without emitting |
-| `npm test` | Run all tests |
+| `npm test` | Run unit tests (local, no network) |
+| `npm run test:unit` | Run unit tests only |
+| `npm run test:testnet` | Run integration tests against Monad testnet |
+| `npm run test:all` | Run all tests (unit + testnet) |
 
 ## Development
 

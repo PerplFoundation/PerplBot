@@ -8,6 +8,7 @@ import { Command } from "commander";
 import { registerDeployCommand } from "./deploy.js";
 import { registerTradeCommand } from "./trade.js";
 import { registerManageCommand } from "./manage.js";
+import { registerShowCommand } from "./show.js";
 
 const program = new Command();
 
@@ -20,6 +21,7 @@ program
 registerDeployCommand(program);
 registerTradeCommand(program);
 registerManageCommand(program);
+registerShowCommand(program);
 
 // Parse and execute
 program.parse();

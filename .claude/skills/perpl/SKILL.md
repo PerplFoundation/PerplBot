@@ -3,80 +3,62 @@ name: perpl
 description: Trade on Perpl DEX - view markets, manage positions, execute trades
 disable-model-invocation: true
 allowed-tools: Bash(npm run dev:*)
-argument-hint: <command> [options]
+argument-hint: <command> [args...]
 ---
 
 # Perpl Trading Skill
 
-Execute trading operations on Perpl DEX (perpetual futures on Monad).
+Execute PerplBot CLI commands directly.
 
-## Commands
+## Usage
 
-### View Markets
-Show all markets with prices and funding rates:
-```bash
-npm run dev -- manage markets
+Pass CLI arguments directly after `/perpl`:
+
+```
+/perpl <command> [subcommand] [options]
 ```
 
-### Account Status
-Show account balance, positions, and P&L:
+## Execution
+
+Run the following command with $ARGUMENTS passed through:
+
 ```bash
-npm run dev -- manage status
+npm run dev -- $ARGUMENTS
 ```
 
-### Open Position
-Open a new long or short position:
-```bash
-npm run dev -- trade open --perp <market> --side <long|short> --size <amount> --price <price> --leverage <multiplier>
-```
-Add `--ioc` for market order, `--post-only` for maker only.
+## Available Commands
 
-### Close Position
-Close an existing position:
-```bash
-npm run dev -- trade close --perp <market> --side <long|short> --size <amount> --price <price>
-```
+### manage
+- `manage markets` - Show prices and funding rates
+- `manage status` - Show account balance and positions
+- `manage deposit --amount <amount>` - Deposit USD collateral
+- `manage withdraw --amount <amount>` - Withdraw USD collateral
 
-### Cancel Order
-Cancel a specific order:
-```bash
-npm run dev -- trade cancel --perp <market> --order-id <id>
-```
+### trade
+- `trade open --perp <market> --side <long|short> --size <amount> --price <price> --leverage <multiplier>` - Open position
+- `trade close --perp <market> --side <long|short> --size <amount> --price <price>` - Close position
+- `trade cancel --perp <market> --order-id <id>` - Cancel order
+- `trade cancel-all --perp <market>` - Cancel all orders
 
-### Cancel All Orders
-Cancel all open orders on a market:
-```bash
-npm run dev -- trade cancel-all --perp <market>
-```
+### show
+- `show book --perp <market>` - Show order book for a market
+- `show trades --perp <market>` - Show recent trades for a market
 
-### Deposit Collateral
-Deposit USD to trading account:
-```bash
-npm run dev -- manage deposit --amount <amount>
-```
-
-### Withdraw Collateral
-Withdraw USD from trading account:
-```bash
-npm run dev -- manage withdraw --amount <amount>
-```
+### Options
+- `--ioc` - Immediate-or-cancel (market order)
+- `--post-only` - Maker only
 
 ## Markets
-- btc (ID: 16)
-- eth (ID: 32)
-- sol (ID: 48)
-- mon (ID: 64)
-- zec (ID: 256)
+- btc, eth, sol, mon, zec
 
-## Argument Parsing
+## Examples
 
-Parse $ARGUMENTS and execute the appropriate command:
-
-- `markets` → `npm run dev -- manage markets`
-- `status` → `npm run dev -- manage status`
-- `open <market> <side> <size> <price> [leverage]` → trade open
-- `close <market> <side> <size> <price>` → trade close
-- `cancel <market> <order-id>` → trade cancel
-- `cancel-all <market>` → trade cancel-all
-- `deposit <amount>` → manage deposit
-- `withdraw <amount>` → manage withdraw
+```
+/perpl manage status
+/perpl manage markets
+/perpl trade open --perp btc --side long --size 0.001 --price 75000 --leverage 2
+/perpl trade close --perp btc --side long --size 0.001 --price 80000
+/perpl trade cancel-all --perp btc
+/perpl show book --perp btc
+/perpl show trades --perp eth --limit 10
+```

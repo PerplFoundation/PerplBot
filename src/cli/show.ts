@@ -1,0 +1,400 @@
+/**
+ * Show command - Display orderbook and recent trades
+ */
+
+import type { Command } from "commander";
+import { parseAbiItem } from "viem";
+import {
+  loadEnvConfig,
+  OperatorWallet,
+  PERPETUALS,
+  pnsToPrice,
+  lnsToLot,
+} from "../sdk/index.js";
+
+// Market name to ID mapping
+const PERP_NAMES: Record<string, bigint> = {
+  btc: PERPETUALS.BTC,
+  eth: PERPETUALS.ETH,
+  sol: PERPETUALS.SOL,
+  mon: PERPETUALS.MON,
+  zec: PERPETUALS.ZEC,
+};
+
+const PERP_IDS_TO_NAMES: Record<string, string> = {
+  "16": "BTC",
+  "32": "ETH",
+  "48": "SOL",
+  "64": "MON",
+  "256": "ZEC",
+};
+
+function resolvePerpId(perp: string): bigint {
+  const lower = perp.toLowerCase();
+  if (PERP_NAMES[lower] !== undefined) {
+    return PERP_NAMES[lower];
+  }
+  const parsed = parseInt(perp, 10);
+  if (!isNaN(parsed)) {
+    return BigInt(parsed);
+  }
+  throw new Error(`Unknown perpetual: ${perp}`);
+}
+
+export function registerShowCommand(program: Command): void {
+  const show = program
+    .command("show")
+    .description("Show live exchange state");
+
+  // Show orderbook
+  show
+    .command("book")
+    .description("Show order book for a market")
+    .requiredOption("--perp <name>", "Perpetual (btc, eth, sol, mon, zec)")
+    .option("--depth <n>", "Number of price levels to show", "10")
+    .action(async (options) => {
+      const config = loadEnvConfig();
+
+      const operator = OperatorWallet.fromPrivateKey(
+        config.operatorPrivateKey,
+        config.chain
+      );
+
+      const perpId = resolvePerpId(options.perp);
+      const depth = parseInt(options.depth, 10);
+      const perpName = PERP_IDS_TO_NAMES[perpId.toString()] || options.perp.toUpperCase();
+
+      console.log(`Fetching ${perpName} order book...`);
+
+      // Get perpetual info for decimals
+      const exchange = config.chain.exchangeAddress;
+      const perpInfo = await operator.publicClient.readContract({
+        address: exchange,
+        abi: [{
+          type: "function",
+          name: "getPerpetualInfo",
+          inputs: [{ name: "perpId", type: "uint256" }],
+          outputs: [{
+            name: "perpetualInfo",
+            type: "tuple",
+            components: [
+              { name: "name", type: "string" },
+              { name: "symbol", type: "string" },
+              { name: "priceDecimals", type: "uint256" },
+              { name: "lotDecimals", type: "uint256" },
+              { name: "linkFeedId", type: "bytes32" },
+              { name: "priceTolPer100K", type: "uint256" },
+              { name: "refPriceMaxAgeSec", type: "uint256" },
+              { name: "positionBalanceCNS", type: "uint256" },
+              { name: "insuranceBalanceCNS", type: "uint256" },
+              { name: "markPNS", type: "uint256" },
+              { name: "markTimestamp", type: "uint256" },
+              { name: "lastPNS", type: "uint256" },
+              { name: "lastTimestamp", type: "uint256" },
+              { name: "oraclePNS", type: "uint256" },
+              { name: "oracleTimestampSec", type: "uint256" },
+              { name: "longOpenInterestLNS", type: "uint256" },
+              { name: "shortOpenInterestLNS", type: "uint256" },
+              { name: "fundingStartBlock", type: "uint256" },
+              { name: "fundingRatePct100k", type: "int16" },
+              { name: "synthPerpPricePNS", type: "uint256" },
+              { name: "absFundingClampPctPer100K", type: "uint256" },
+              { name: "paused", type: "bool" },
+              { name: "basePricePNS", type: "uint256" },
+              { name: "maxBidPriceONS", type: "uint256" },
+              { name: "minBidPriceONS", type: "uint256" },
+              { name: "maxAskPriceONS", type: "uint256" },
+              { name: "minAskPriceONS", type: "uint256" },
+              { name: "numOrders", type: "uint256" },
+              { name: "ignOracle", type: "bool" },
+            ],
+          }],
+          stateMutability: "view",
+        }],
+        functionName: "getPerpetualInfo",
+        args: [perpId],
+      }) as any;
+
+      const priceDecimals = BigInt(perpInfo.priceDecimals);
+      const lotDecimals = BigInt(perpInfo.lotDecimals);
+      const markPrice = pnsToPrice(perpInfo.markPNS, priceDecimals);
+
+      // Scan recent blocks for orders (limited to reduce RPC calls)
+      const currentBlock = await operator.publicClient.getBlockNumber();
+      const blocksToScan = 1000n;
+      const startBlock = currentBlock - blocksToScan;
+
+      const orderRequestEvent = parseAbiItem(
+        "event OrderRequest(uint256 perpId, uint256 accountId, uint256 orderDescId, uint256 orderId, uint8 orderType, uint256 pricePNS, uint256 lotLNS, uint256 expiryBlock, bool postOnly, bool fillOrKill, bool immediateOrCancel, uint256 maxMatches, uint256 leverageHdths, uint256 gasLeft)"
+      );
+      const orderPlacedEvent = parseAbiItem(
+        "event OrderPlaced(uint256 orderId, uint256 lotLNS, uint256 lockedBalanceCNS, int256 amountCNS, uint256 balanceCNS)"
+      );
+      const orderCancelledEvent = parseAbiItem(
+        "event OrderCancelled(uint256 lockedBalanceCNS, int256 amountCNS, uint256 balanceCNS)"
+      );
+      const makerFilledEvent = parseAbiItem(
+        "event MakerOrderFilled(uint256 perpId, uint256 accountId, uint256 orderId, uint256 pricePNS, uint256 lotLNS, uint256 feeCNS, uint256 lockedBalanceCNS, int256 amountCNS, uint256 balanceCNS)"
+      );
+
+      // Collect events (Monad testnet limits eth_getLogs to 100 blocks)
+      const BATCH_SIZE = 100n;
+      const requests: any[] = [];
+      const placed: Map<string, any> = new Map();
+      const cancelled: Set<string> = new Set();
+      const filled: Map<string, bigint> = new Map(); // orderId -> filled amount
+
+      console.log("Scanning recent blocks for orders...");
+
+      for (let fromBlock = startBlock; fromBlock < currentBlock; fromBlock += BATCH_SIZE) {
+        const toBlock = fromBlock + BATCH_SIZE - 1n > currentBlock ? currentBlock : fromBlock + BATCH_SIZE - 1n;
+
+        const [reqBatch, placedBatch, cancelBatch, fillBatch] = await Promise.all([
+          operator.publicClient.getLogs({
+            address: exchange,
+            event: orderRequestEvent,
+            fromBlock,
+            toBlock,
+          }),
+          operator.publicClient.getLogs({
+            address: exchange,
+            event: orderPlacedEvent,
+            fromBlock,
+            toBlock,
+          }),
+          operator.publicClient.getLogs({
+            address: exchange,
+            event: orderCancelledEvent,
+            fromBlock,
+            toBlock,
+          }),
+          operator.publicClient.getLogs({
+            address: exchange,
+            event: makerFilledEvent,
+            fromBlock,
+            toBlock,
+          }),
+        ]);
+
+        // Filter requests for this perp, non-IOC orders
+        for (const log of reqBatch) {
+          if (log.args.perpId === perpId && !log.args.immediateOrCancel) {
+            requests.push(log);
+          }
+        }
+
+        // Track placed orders by tx hash
+        for (const log of placedBatch) {
+          placed.set(log.transactionHash, log);
+        }
+
+        // Track cancellations by tx hash
+        for (const log of cancelBatch) {
+          cancelled.add(log.transactionHash);
+        }
+
+        // Track fills
+        for (const log of fillBatch) {
+          if (log.args.perpId === perpId) {
+            const orderId = log.args.orderId!.toString();
+            const prevFilled = filled.get(orderId) || 0n;
+            filled.set(orderId, prevFilled + log.args.lotLNS!);
+          }
+        }
+      }
+
+      // Build orderbook: aggregate by price level
+      const bids: Map<number, number> = new Map(); // price -> size
+      const asks: Map<number, number> = new Map();
+
+      for (const req of requests) {
+        const txHash = req.transactionHash;
+        const placedLog = placed.get(txHash);
+
+        // Skip if not placed or was cancelled
+        if (!placedLog || cancelled.has(txHash)) continue;
+
+        const orderId = placedLog.args.orderId!.toString();
+        const orderType = Number(req.args.orderType);
+        const pricePNS = req.args.pricePNS!;
+        const lotLNS = placedLog.args.lotLNS!;
+        const filledLNS = filled.get(orderId) || 0n;
+        const remainingLNS = lotLNS - filledLNS;
+
+        if (remainingLNS <= 0n) continue;
+
+        const price = pnsToPrice(pricePNS, priceDecimals);
+        const size = lnsToLot(remainingLNS, lotDecimals);
+
+        // OrderType: 0=OpenLong (bid), 1=OpenShort (ask), 2=CloseLong (ask), 3=CloseShort (bid)
+        const isBid = orderType === 0 || orderType === 3;
+
+        if (isBid) {
+          bids.set(price, (bids.get(price) || 0) + size);
+        } else {
+          asks.set(price, (asks.get(price) || 0) + size);
+        }
+      }
+
+      // Sort and display
+      const sortedBids = [...bids.entries()].sort((a, b) => b[0] - a[0]).slice(0, depth);
+      const sortedAsks = [...asks.entries()].sort((a, b) => a[0] - b[0]).slice(0, depth);
+
+      console.log(`\n=== ${perpName} Order Book ===`);
+      console.log(`Mark Price: $${markPrice.toFixed(2)}\n`);
+
+      // Display asks (top to bottom = high to low price)
+      console.log("         Price          Size");
+      console.log("─────────────────────────────");
+
+      for (const [price, size] of sortedAsks.reverse()) {
+        console.log(`  ASK    $${price.toFixed(2).padStart(10)}    ${size.toFixed(6)}`);
+      }
+
+      console.log(`  ────── $${markPrice.toFixed(2).padStart(10)} ──────`);
+
+      for (const [price, size] of sortedBids) {
+        console.log(`  BID    $${price.toFixed(2).padStart(10)}    ${size.toFixed(6)}`);
+      }
+
+      if (sortedBids.length === 0 && sortedAsks.length === 0) {
+        console.log("\n  (No resting orders found in recent blocks)");
+      }
+
+      console.log(`\nScanned ${blocksToScan} blocks, found ${requests.length} order requests`);
+    });
+
+  // Show recent trades
+  show
+    .command("trades")
+    .description("Show recent trades for a market")
+    .requiredOption("--perp <name>", "Perpetual (btc, eth, sol, mon, zec)")
+    .option("--limit <n>", "Number of trades to show", "20")
+    .action(async (options) => {
+      const config = loadEnvConfig();
+
+      const operator = OperatorWallet.fromPrivateKey(
+        config.operatorPrivateKey,
+        config.chain
+      );
+
+      const perpId = resolvePerpId(options.perp);
+      const limit = parseInt(options.limit, 10);
+      const perpName = PERP_IDS_TO_NAMES[perpId.toString()] || options.perp.toUpperCase();
+
+      console.log(`Fetching recent ${perpName} trades...`);
+
+      // Get perpetual info for decimals
+      const exchange = config.chain.exchangeAddress;
+      const perpInfo = await operator.publicClient.readContract({
+        address: exchange,
+        abi: [{
+          type: "function",
+          name: "getPerpetualInfo",
+          inputs: [{ name: "perpId", type: "uint256" }],
+          outputs: [{
+            name: "perpetualInfo",
+            type: "tuple",
+            components: [
+              { name: "name", type: "string" },
+              { name: "symbol", type: "string" },
+              { name: "priceDecimals", type: "uint256" },
+              { name: "lotDecimals", type: "uint256" },
+              { name: "linkFeedId", type: "bytes32" },
+              { name: "priceTolPer100K", type: "uint256" },
+              { name: "refPriceMaxAgeSec", type: "uint256" },
+              { name: "positionBalanceCNS", type: "uint256" },
+              { name: "insuranceBalanceCNS", type: "uint256" },
+              { name: "markPNS", type: "uint256" },
+              { name: "markTimestamp", type: "uint256" },
+              { name: "lastPNS", type: "uint256" },
+              { name: "lastTimestamp", type: "uint256" },
+              { name: "oraclePNS", type: "uint256" },
+              { name: "oracleTimestampSec", type: "uint256" },
+              { name: "longOpenInterestLNS", type: "uint256" },
+              { name: "shortOpenInterestLNS", type: "uint256" },
+              { name: "fundingStartBlock", type: "uint256" },
+              { name: "fundingRatePct100k", type: "int16" },
+              { name: "synthPerpPricePNS", type: "uint256" },
+              { name: "absFundingClampPctPer100K", type: "uint256" },
+              { name: "paused", type: "bool" },
+              { name: "basePricePNS", type: "uint256" },
+              { name: "maxBidPriceONS", type: "uint256" },
+              { name: "minBidPriceONS", type: "uint256" },
+              { name: "maxAskPriceONS", type: "uint256" },
+              { name: "minAskPriceONS", type: "uint256" },
+              { name: "numOrders", type: "uint256" },
+              { name: "ignOracle", type: "bool" },
+            ],
+          }],
+          stateMutability: "view",
+        }],
+        functionName: "getPerpetualInfo",
+        args: [perpId],
+      }) as any;
+
+      const priceDecimals = BigInt(perpInfo.priceDecimals);
+      const lotDecimals = BigInt(perpInfo.lotDecimals);
+
+      // Scan recent blocks for fills (limited to reduce RPC calls)
+      const currentBlock = await operator.publicClient.getBlockNumber();
+      const blocksToScan = 2000n;
+      const startBlock = currentBlock - blocksToScan;
+
+      const makerFilledEvent = parseAbiItem(
+        "event MakerOrderFilled(uint256 perpId, uint256 accountId, uint256 orderId, uint256 pricePNS, uint256 lotLNS, uint256 feeCNS, uint256 lockedBalanceCNS, int256 amountCNS, uint256 balanceCNS)"
+      );
+
+      const BATCH_SIZE = 100n;
+      const trades: any[] = [];
+
+      console.log("Scanning recent blocks for trades...");
+
+      for (let fromBlock = startBlock; fromBlock < currentBlock; fromBlock += BATCH_SIZE) {
+        const toBlock = fromBlock + BATCH_SIZE - 1n > currentBlock ? currentBlock : fromBlock + BATCH_SIZE - 1n;
+
+        const fillBatch = await operator.publicClient.getLogs({
+          address: exchange,
+          event: makerFilledEvent,
+          fromBlock,
+          toBlock,
+        });
+
+        for (const log of fillBatch) {
+          if (log.args.perpId === perpId) {
+            trades.push({
+              blockNumber: log.blockNumber,
+              txHash: log.transactionHash,
+              price: pnsToPrice(log.args.pricePNS!, priceDecimals),
+              size: lnsToLot(log.args.lotLNS!, lotDecimals),
+              makerAccountId: log.args.accountId,
+              orderId: log.args.orderId,
+            });
+          }
+        }
+      }
+
+      // Sort by block (newest first) and limit
+      trades.sort((a, b) => Number(b.blockNumber - a.blockNumber));
+      const recentTrades = trades.slice(0, limit);
+
+      console.log(`\n=== Recent ${perpName} Trades ===\n`);
+      console.log("Block       Price          Size       Maker    Order");
+      console.log("─────────────────────────────────────────────────────");
+
+      if (recentTrades.length === 0) {
+        console.log("  (No trades found in recent blocks)");
+      } else {
+        for (const trade of recentTrades) {
+          const block = trade.blockNumber.toString().padStart(8);
+          const price = `$${trade.price.toFixed(2)}`.padStart(12);
+          const size = trade.size.toFixed(6).padStart(10);
+          const maker = trade.makerAccountId.toString().padStart(6);
+          const order = trade.orderId.toString().padStart(6);
+          console.log(`${block}  ${price}  ${size}  ${maker}  ${order}`);
+        }
+      }
+
+      console.log(`\nScanned ${blocksToScan} blocks, found ${trades.length} trades`);
+    });
+}

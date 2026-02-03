@@ -238,7 +238,7 @@ operator.connect(exchangeAddress, delegatedAccountAddress);
 
 // Market order
 await operator.marketOpenLong({
-  perpId: 0n, // BTC
+  perpId: 16n, // BTC
   lotLNS: lotToLNS(0.1),
   leverageHdths: leverageToHdths(10),
   maxPricePNS: priceToPNS(46000),
@@ -334,11 +334,30 @@ DELEGATED_ACCOUNT_ADDRESS=your_deployed_address
 # Type check
 npm run typecheck
 
-# Run tests (93 tests)
+# Run tests (212 tests)
 npm test
 
 # Build
 npm run build
+```
+
+## Claude Code Integration
+
+PerplBot includes Claude Code skills for AI-assisted trading:
+
+### /perpl - Direct CLI Commands
+```
+/perpl manage status        # Check account and positions
+/perpl manage markets       # View prices and funding
+/perpl trade open --perp btc --side long --size 0.001 --price 75000 --leverage 2
+```
+
+### /perpl-type - Natural Language Trading
+Trade using plain English (with confirmation):
+```
+/perpl-type long 0.01 btc at 78000 with 5x leverage
+/perpl-type short 1 eth at market 10x
+/perpl-type close my btc long 0.001 at 80000
 ```
 
 ## Related Projects

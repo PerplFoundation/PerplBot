@@ -42,6 +42,31 @@ PerplBot uses a **delegated account pattern**:
 - **Operator (Hot Wallet)**: Can execute trades through allowlisted functions only - CANNOT WITHDRAW
 - **DelegatedAccount Contract**: Proxy that forwards calls to the Exchange, enforces access control
 
+## Claude Code Skills
+
+### /perpl - Direct CLI Commands
+Execute PerplBot CLI commands directly:
+```
+/perpl manage status
+/perpl manage markets
+/perpl trade open --perp btc --side long --size 0.001 --price 75000 --leverage 2
+```
+
+### /perpl-type - Natural Language Trading
+Trade using plain English (confirms before executing):
+```
+/perpl-type long 0.01 btc at 78000 with 5x leverage
+/perpl-type short 1 eth at market 10x
+/perpl-type close my btc long 0.001 at 80000
+```
+
+Supported phrases:
+- Side: "long", "buy", "short", "sell"
+- Action: "close", "exit" (defaults to open)
+- Markets: btc/bitcoin, eth/ethereum, sol/solana, mon/monad, zec/zcash
+- Price: "at 78000", "@ $78000", "at market"
+- Options: "maker only", "post-only"
+
 ## CLI Commands
 
 ### Deployment (Owner)

@@ -49,6 +49,9 @@ show trades --perp <market> - Show recent trades
 
 Options: --ioc (market order), --post-only (maker only)
 Markets: btc, eth, sol, mon, zec
+
+Natural Language: Use /perpl-type for plain English trades
+  Example: /perpl-type long 0.01 btc at 78000 with 5x leverage
 ```
 
 ## Command Details

@@ -116,7 +116,7 @@ operator.connect(exchangeAddress, delegatedAccountAddress);
 
 // Market open long (IOC)
 await operator.marketOpenLong({
-  perpId: 0n, // BTC
+  perpId: 16n, // BTC
   lotLNS: lotToLNS(0.1),
   leverageHdths: leverageToHdths(10),
   maxPricePNS: priceToPNS(46000), // Max price willing to pay
@@ -124,7 +124,7 @@ await operator.marketOpenLong({
 
 // Limit open long
 await operator.openLong({
-  perpId: 0n,
+  perpId: 16n, // BTC
   pricePNS: priceToPNS(45000),
   lotLNS: lotToLNS(0.1),
   leverageHdths: leverageToHdths(10),
@@ -133,20 +133,20 @@ await operator.openLong({
 
 // Market close long
 await operator.marketCloseLong({
-  perpId: 0n,
+  perpId: 16n, // BTC
   lotLNS: lotToLNS(0.1),
   minPricePNS: priceToPNS(44000), // Min price willing to accept
 });
 
 // Reduce position (partial close)
 await operator.reduceLong({
-  perpId: 0n,
+  perpId: 16n, // BTC
   lotLNS: lotToLNS(0.05), // Close half
   pricePNS: priceToPNS(46000),
 });
 
 // Add margin to position
-await operator.addMargin(0n, amountToCNS(100)); // Add 100 USD stable
+await operator.addMargin(16n, amountToCNS(100)); // Add 100 USD to BTC position
 ```
 
 ### Portfolio Queries
@@ -176,13 +176,13 @@ console.log(`Balance: $${summary.balance}`);
 console.log(`Unrealized PnL: $${summary.unrealizedPnl}`);
 console.log(`Total Equity: $${summary.totalEquity}`);
 
-// Get time until next funding
-const funding = await portfolio.getFundingInfo(0n);
-console.log(`Next funding in: ${await portfolio.getTimeUntilFunding(0n)}`);
+// Get time until next funding (for BTC)
+const funding = await portfolio.getFundingInfo(16n);
+console.log(`Next funding in: ${await portfolio.getTimeUntilFunding(16n)}`);
 console.log(`Current rate: ${funding.currentRate}%`);
 
-// Get trading fees
-const fees = await portfolio.getTradingFees(0n);
+// Get trading fees (for BTC)
+const fees = await portfolio.getTradingFees(16n);
 console.log(`Taker fee: ${fees.takerFeePercent}%`);
 console.log(`Maker fee: ${fees.makerFeePercent}%`);
 ```
@@ -193,7 +193,7 @@ import { GridStrategy, MarketMakerStrategy } from "perplbot";
 
 // Grid trading
 const grid = new GridStrategy({
-  perpId: 0n,
+  perpId: 16n, // BTC
   centerPrice: 45000,
   gridLevels: 5,
   gridSpacing: 100,
@@ -207,7 +207,7 @@ await operator.execOrders(gridOrders);
 
 // Market making
 const mm = new MarketMakerStrategy({
-  perpId: 0n,
+  perpId: 16n, // BTC
   orderSize: 0.1,
   spreadPercent: 0.001, // 0.1%
   leverage: 5,
@@ -222,18 +222,18 @@ const quotes = mm.calculateQuotes(
 const { bidOrder, askOrder } = mm.generateOrders(quotes);
 ```
 
-## Perpetual IDs
-- BTC: 0
-- ETH: 1
-- SOL: 2
-- MON: 3
-- ZEC: 4
+## Perpetual IDs (from dex-sdk testnet config)
+- BTC: 16
+- ETH: 32
+- SOL: 48
+- MON: 64
+- ZEC: 256
 
 ## Price/Size Formats
-- Prices in PNS (6 decimals): `45000 USD stable = 45000000000`
-- Lot sizes in LNS (8 decimals): `0.1 BTC = 10000000`
+- Prices in PNS (1 decimal): `45000 USD = 450000`
+- Lot sizes in LNS (5 decimals): `0.1 BTC = 10000`
 - Leverage in hundredths: `10x = 1000`
-- Collateral in CNS (6 decimals): `100 USD stable = 100000000`
+- Collateral in CNS (6 decimals): `100 USD = 100000000`
 
 Helper functions: `priceToPNS()`, `lotToLNS()`, `leverageToHdths()`, `amountToCNS()`
 

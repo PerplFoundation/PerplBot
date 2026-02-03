@@ -321,6 +321,7 @@ DELEGATED_ACCOUNT_ADDRESS=your_deployed_address
 | `npm run deploy:implementation` | Deploy DelegatedAccount implementation (requires Foundry) |
 | `npm run deploy:all -- <deposit>` | Deploy implementation + proxy in one command |
 | `npm run dev -- <cmd>` | Run CLI commands in development mode |
+| `npm run bot` | Start the Telegram bot |
 | `npm run build` | Build TypeScript to dist/ |
 | `npm run typecheck` | Type check without emitting |
 | `npm test` | Run unit tests (local, no network) |
@@ -362,6 +363,68 @@ Use plain English for any Perpl command:
 /perpl-type cancel all eth orders
 /perpl-type long 0.01 btc at 78000 5x   # Trades confirm first
 ```
+
+## Telegram Bot
+
+Trade via Telegram with natural language commands.
+
+### Setup
+
+1. **Create a bot** via [@BotFather](https://t.me/BotFather) on Telegram
+   - Send `/newbot` and follow the prompts
+   - Copy the token BotFather gives you
+
+2. **Get your user ID** from [@userinfobot](https://t.me/userinfobot)
+   - Send any message and it replies with your numeric ID
+
+3. **Add to `.env`**:
+   ```env
+   TELEGRAM_BOT_TOKEN=your_bot_token_here
+   TELEGRAM_USER_ID=your_numeric_user_id
+   ```
+
+4. **Start the bot**:
+   ```bash
+   npm run bot
+   ```
+
+### Commands
+
+| Command | Description |
+|---------|-------------|
+| `/status` | Account balance and positions |
+| `/markets` | Prices and funding rates |
+| `/help` | All available commands |
+
+### Natural Language
+
+Just send a message:
+
+**Account & Market Info**
+- "status" or "balance" or "positions"
+- "markets" or "prices"
+- "btc order book" or "eth book"
+- "btc trades" or "recent eth trades"
+
+**Trading (with confirmation)**
+- "long 0.01 btc at 78000 5x"
+- "short 0.1 eth at 3000"
+- "buy 1 sol at market"
+
+**Order Management**
+- "cancel btc order 123"
+- "cancel all btc orders"
+
+**Position Management**
+- "close position btc" — close specific market
+- "close all" — cancel all orders + close all positions
+- "close all eth" — cancel + close for one market
+
+### Security
+
+- **Single-user mode**: Only your Telegram ID can use the bot
+- **Trade confirmation**: All trades require clicking Confirm before execution
+- **Deposits/withdrawals disabled**: Use CLI for fund movements
 
 ## Related Projects
 

@@ -334,7 +334,7 @@ DELEGATED_ACCOUNT_ADDRESS=your_deployed_address
 # Type check
 npm run typecheck
 
-# Run tests (212 tests)
+# Run tests (239 tests)
 npm test
 
 # Build
@@ -352,12 +352,15 @@ PerplBot includes Claude Code skills for AI-assisted trading:
 /perpl trade open --perp btc --side long --size 0.001 --price 75000 --leverage 2
 ```
 
-### /perpl-type - Natural Language Trading
-Trade using plain English (with confirmation):
+### /perpl-type - Natural Language Interface
+Use plain English for any Perpl command:
 ```
-/perpl-type long 0.01 btc at 78000 with 5x leverage
-/perpl-type short 1 eth at market 10x
-/perpl-type close my btc long 0.001 at 80000
+/perpl-type show me my account      # Queries execute instantly
+/perpl-type what are the prices
+/perpl-type btc order book
+/perpl-type deposit 100
+/perpl-type cancel all eth orders
+/perpl-type long 0.01 btc at 78000 5x   # Trades confirm first
 ```
 
 ## Related Projects

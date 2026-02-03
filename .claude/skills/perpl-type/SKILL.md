@@ -1,39 +1,69 @@
 ---
 name: perpl-type
-description: Natural language trading - describe your trade in plain English
+description: Natural language Perpl commands - trades, queries, and account management
 model: haiku
 allowed-tools: Bash(npm run dev:*), AskUserQuestion
-argument-hint: <describe your trade in plain English>
+argument-hint: <describe what you want to do>
 ---
 
-# Perpl Natural Language Trading
+# Perpl Natural Language Interface
 
-Convert natural language trade descriptions into executable orders.
+Convert natural language into PerplBot CLI commands.
 
 ## Usage
 
 ```
-/perpl-type <describe your trade>
+/perpl-type <describe what you want to do>
 ```
+
+## Supported Commands
+
+### Account & Portfolio
+| Input | Command |
+|-------|---------|
+| "show me my account" | `manage status` |
+| "what's my balance" | `manage status` |
+| "show my positions" | `manage status` |
+| "account info" | `manage status` |
+
+### Market Data
+| Input | Command |
+|-------|---------|
+| "show markets" | `manage markets` |
+| "what are the prices" | `manage markets` |
+| "show funding rates" | `manage markets` |
+| "btc order book" | `show book --perp btc` |
+| "show eth depth" | `show book --perp eth` |
+| "recent btc trades" | `show trades --perp btc` |
+
+### Account Management
+| Input | Command |
+|-------|---------|
+| "deposit 100" | `manage deposit --amount 100` |
+| "withdraw 50" | `manage withdraw --amount 50` |
+
+### Order Management
+| Input | Command |
+|-------|---------|
+| "cancel all btc orders" | `trade cancel-all --perp btc` |
+| "cancel btc order 123" | `trade cancel --perp btc --order-id 123` |
+
+### Trading (requires confirmation)
+| Input | Command |
+|-------|---------|
+| "long 0.01 btc at 78000 5x" | `trade open --perp btc --side long ...` |
+| "short 1 eth at market 10x" | `trade open --perp eth --side short ... --ioc` |
+| "close my btc long 0.01 at 80000" | `trade close --perp btc --side long ...` |
 
 ## Execution Flow
 
 1. Parse the user's natural language input from `$ARGUMENTS`
-2. Extract trade parameters:
-   - Action: open or close
-   - Market: btc, eth, sol, mon, zec
-   - Side: long or short
-   - Size: amount to trade
-   - Price: limit price (or "market" for IOC)
-   - Leverage: multiplier (for opens only)
-3. Build the CLI command
-4. Use AskUserQuestion to confirm the trade with the user, showing:
-   - The interpreted parameters
-   - The exact command that will run
-5. If confirmed, execute: `npm run dev -- trade <args>`
-6. Summarize the result in 2 sentences
+2. Determine command type (query, account management, or trade)
+3. For trades only: Use AskUserQuestion to confirm before executing
+4. Execute the appropriate CLI command
+5. Summarize the result in 2 sentences
 
-## Parameter Mapping
+## Trade Parameter Mapping
 
 | Input phrases | Parameter |
 |---------------|-----------|
@@ -47,25 +77,34 @@ Convert natural language trade descriptions into executable orders.
 | "at market", "market order" | --ioc |
 | "maker only", "post only" | --post-only |
 | "close", "exit" | trade close |
-| "open", "enter" | trade open |
 
 ## Examples
 
-Input: "long 0.01 btc at 78000 with 5x leverage"
-Command: `npm run dev -- trade open --perp btc --side long --size 0.01 --price 78000 --leverage 5`
+### Queries (execute immediately)
+```
+/perpl-type show me my account
+/perpl-type what are the current prices
+/perpl-type show btc order book
+/perpl-type recent eth trades
+```
 
-Input: "short 1 eth at market"
-Command: `npm run dev -- trade open --perp eth --side short --size 1 --price <current_ask> --leverage 1 --ioc`
+### Account Management (execute immediately)
+```
+/perpl-type deposit 100
+/perpl-type withdraw 50
+/perpl-type cancel all btc orders
+```
 
-Input: "close my btc long 0.001 at 80000"
-Command: `npm run dev -- trade close --perp btc --side long --size 0.001 --price 80000`
+### Trades (confirm first)
+```
+/perpl-type long 0.01 btc at 78000 with 5x leverage
+/perpl-type short 1 eth at market 10x
+/perpl-type close my btc long 0.001 at 80000
+```
 
-Input: "buy 10 sol at 105 10x"
-Command: `npm run dev -- trade open --perp sol --side long --size 10 --price 105 --leverage 10`
+## Confirmation Format (trades only)
 
-## Confirmation Format
-
-Before executing, ask user to confirm with AskUserQuestion:
+Before executing a trade, ask user to confirm with AskUserQuestion:
 
 ```
 Trade: OPEN LONG 0.01 BTC @ $78,000 (5x leverage)
@@ -81,6 +120,7 @@ After execution, summarize in 2 sentences maximum.
 ## Parser Module
 
 The parsing logic is implemented in `src/cli/tradeParser.ts` with full test coverage in `test/tradeParser.test.ts`. The module exports:
-- `parseTrade(input: string)` - Parse natural language to trade object
+- `parseCommand(input: string)` - Parse any natural language input
+- `parseTrade(input: string)` - Parse trade-specific input
 - `buildCommand(trade: ParsedTrade)` - Build CLI command string
 - `formatTrade(trade: ParsedTrade)` - Format trade for display

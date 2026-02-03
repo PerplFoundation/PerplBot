@@ -1,11 +1,13 @@
 /**
- * Natural language trade parser for /perpl-type skill
- * Converts plain English trade descriptions into CLI command arguments
+ * Natural language parser for /perpl-type skill
+ * Converts plain English into CLI commands (trades, queries, account management)
  */
+
+export type Market = "btc" | "eth" | "sol" | "mon" | "zec";
 
 export interface ParsedTrade {
   action: "open" | "close";
-  market: "btc" | "eth" | "sol" | "mon" | "zec";
+  market: Market;
   side: "long" | "short";
   size: number;
   price: number | "market";
@@ -16,14 +18,24 @@ export interface ParsedTrade {
   };
 }
 
+export interface ParsedCommand {
+  type: "trade" | "status" | "markets" | "book" | "trades" | "deposit" | "withdraw" | "cancel" | "cancel-all";
+  trade?: ParsedTrade;
+  market?: Market;
+  amount?: number;
+  orderId?: string;
+}
+
 export interface ParseResult {
   success: boolean;
   trade?: ParsedTrade;
+  parsed?: ParsedCommand;
   command?: string;
+  description?: string;
   error?: string;
 }
 
-const MARKET_ALIASES: Record<string, ParsedTrade["market"]> = {
+const MARKET_ALIASES: Record<string, Market> = {
   btc: "btc",
   bitcoin: "btc",
   eth: "eth",
@@ -41,6 +53,154 @@ const SHORT_KEYWORDS = ["short", "sell", "go short", "enter short"];
 const CLOSE_KEYWORDS = ["close", "exit", "close out", "flatten"];
 const MARKET_ORDER_KEYWORDS = ["at market", "market order", "market price", "immediately"];
 const POST_ONLY_KEYWORDS = ["maker only", "post only", "post-only", "maker"];
+
+// Command detection keywords
+const STATUS_KEYWORDS = ["status", "account", "balance", "positions", "my positions", "portfolio", "account info", "show me my"];
+const MARKETS_KEYWORDS = ["markets", "prices", "market prices", "funding", "all markets", "list markets"];
+const BOOK_KEYWORDS = ["order book", "orderbook", "book", "depth", "bids", "asks"];
+const TRADES_KEYWORDS = ["recent trades", "trades", "trade history", "last trades"];
+const DEPOSIT_KEYWORDS = ["deposit"];
+const WITHDRAW_KEYWORDS = ["withdraw", "withdrawal"];
+const CANCEL_ALL_KEYWORDS = ["cancel all", "cancel-all", "close all orders"];
+// Single order cancel - just needs "cancel" and an order ID (but not "cancel all")
+const CANCEL_SINGLE_PATTERN = /cancel.*(?:order|#)\s*(\d+)|cancel.*(\d+)/i;
+
+/**
+ * Find a market in the input text
+ */
+function findMarket(text: string): Market | undefined {
+  for (const [alias, market] of Object.entries(MARKET_ALIASES)) {
+    const regex = new RegExp(`\\b${alias}\\b`, "i");
+    if (regex.test(text)) {
+      return market;
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Parse any natural language command into a CLI command
+ */
+export function parseCommand(input: string): ParseResult {
+  const text = input.toLowerCase().trim();
+
+  if (!text) {
+    return { success: false, error: "Empty input" };
+  }
+
+  // Check for status/account commands
+  if (STATUS_KEYWORDS.some((k) => text.includes(k))) {
+    return {
+      success: true,
+      parsed: { type: "status" },
+      command: "manage status",
+      description: "Show account balance and positions",
+    };
+  }
+
+  // Check for markets command
+  if (MARKETS_KEYWORDS.some((k) => text.includes(k)) && !BOOK_KEYWORDS.some((k) => text.includes(k))) {
+    return {
+      success: true,
+      parsed: { type: "markets" },
+      command: "manage markets",
+      description: "Show all markets with prices and funding rates",
+    };
+  }
+
+  // Check for order book command
+  if (BOOK_KEYWORDS.some((k) => text.includes(k))) {
+    const market = findMarket(text);
+    if (!market) {
+      return { success: false, error: "Please specify a market (btc, eth, sol, mon, zec)" };
+    }
+    return {
+      success: true,
+      parsed: { type: "book", market },
+      command: `show book --perp ${market}`,
+      description: `Show ${market.toUpperCase()} order book`,
+    };
+  }
+
+  // Check for recent trades command
+  if (TRADES_KEYWORDS.some((k) => text.includes(k))) {
+    const market = findMarket(text);
+    if (!market) {
+      return { success: false, error: "Please specify a market (btc, eth, sol, mon, zec)" };
+    }
+    return {
+      success: true,
+      parsed: { type: "trades", market },
+      command: `show trades --perp ${market}`,
+      description: `Show recent ${market.toUpperCase()} trades`,
+    };
+  }
+
+  // Check for deposit command
+  if (DEPOSIT_KEYWORDS.some((k) => text.includes(k))) {
+    const amountMatch = text.match(/(\d+\.?\d*)/);
+    if (!amountMatch) {
+      return { success: false, error: "Please specify an amount to deposit" };
+    }
+    const amount = parseFloat(amountMatch[1]);
+    return {
+      success: true,
+      parsed: { type: "deposit", amount },
+      command: `manage deposit --amount ${amount}`,
+      description: `Deposit ${amount} USD`,
+    };
+  }
+
+  // Check for withdraw command
+  if (WITHDRAW_KEYWORDS.some((k) => text.includes(k))) {
+    const amountMatch = text.match(/(\d+\.?\d*)/);
+    if (!amountMatch) {
+      return { success: false, error: "Please specify an amount to withdraw" };
+    }
+    const amount = parseFloat(amountMatch[1]);
+    return {
+      success: true,
+      parsed: { type: "withdraw", amount },
+      command: `manage withdraw --amount ${amount}`,
+      description: `Withdraw ${amount} USD`,
+    };
+  }
+
+  // Check for cancel all orders command
+  if (CANCEL_ALL_KEYWORDS.some((k) => text.includes(k))) {
+    const market = findMarket(text);
+    if (!market) {
+      return { success: false, error: "Please specify a market (btc, eth, sol, mon, zec)" };
+    }
+    return {
+      success: true,
+      parsed: { type: "cancel-all", market },
+      command: `trade cancel-all --perp ${market}`,
+      description: `Cancel all ${market.toUpperCase()} orders`,
+    };
+  }
+
+  // Check for cancel single order command (has "cancel" + order ID, but not "cancel all")
+  if (text.includes("cancel") && !CANCEL_ALL_KEYWORDS.some((k) => text.includes(k))) {
+    const orderIdMatch = text.match(/(?:order|id|#)\s*(\d+)/i) || text.match(/\b(\d+)\b/);
+    if (orderIdMatch) {
+      const market = findMarket(text);
+      if (!market) {
+        return { success: false, error: "Please specify a market (btc, eth, sol, mon, zec)" };
+      }
+      const orderId = orderIdMatch[1];
+      return {
+        success: true,
+        parsed: { type: "cancel", market, orderId },
+        command: `trade cancel --perp ${market} --order-id ${orderId}`,
+        description: `Cancel ${market.toUpperCase()} order #${orderId}`,
+      };
+    }
+  }
+
+  // If no query command matched, try to parse as a trade
+  return parseTrade(input);
+}
 
 /**
  * Parse natural language trade description into structured trade object

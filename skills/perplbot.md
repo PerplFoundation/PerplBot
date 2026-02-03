@@ -52,8 +52,25 @@ Execute PerplBot CLI commands directly:
 /perpl trade open --perp btc --side long --size 0.001 --price 75000 --leverage 2
 ```
 
-### /perpl-type - Natural Language Trading
-Trade using plain English (confirms before executing):
+### /perpl-type - Natural Language Interface
+Use plain English for any Perpl command:
+
+**Queries (instant):**
+```
+/perpl-type show me my account
+/perpl-type what are the prices
+/perpl-type btc order book
+/perpl-type recent eth trades
+```
+
+**Account management (instant):**
+```
+/perpl-type deposit 100
+/perpl-type withdraw 50
+/perpl-type cancel all btc orders
+```
+
+**Trading (confirms first):**
 ```
 /perpl-type long 0.01 btc at 78000 with 5x leverage
 /perpl-type short 1 eth at market 10x

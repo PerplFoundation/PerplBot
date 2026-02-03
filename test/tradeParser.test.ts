@@ -1,14 +1,211 @@
 /**
- * Tests for natural language trade parser (/perpl-type skill)
+ * Tests for natural language parser (/perpl-type skill)
  */
 
 import { describe, it, expect } from "vitest";
 import {
+  parseCommand,
   parseTrade,
   buildCommand,
   formatTrade,
   ParsedTrade,
 } from "../src/cli/tradeParser.js";
+
+describe("parseCommand", () => {
+  describe("Status Commands", () => {
+    it("parses 'show me my account'", () => {
+      const result = parseCommand("show me my account");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("manage status");
+      expect(result.parsed?.type).toBe("status");
+    });
+
+    it("parses 'what is my balance'", () => {
+      const result = parseCommand("what is my balance");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("manage status");
+    });
+
+    it("parses 'show my positions'", () => {
+      const result = parseCommand("show my positions");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("manage status");
+    });
+
+    it("parses 'account info'", () => {
+      const result = parseCommand("account info");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("manage status");
+    });
+
+    it("parses 'portfolio'", () => {
+      const result = parseCommand("portfolio");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("manage status");
+    });
+  });
+
+  describe("Markets Commands", () => {
+    it("parses 'show markets'", () => {
+      const result = parseCommand("show markets");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("manage markets");
+      expect(result.parsed?.type).toBe("markets");
+    });
+
+    it("parses 'what are the prices'", () => {
+      const result = parseCommand("what are the prices");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("manage markets");
+    });
+
+    it("parses 'show funding rates'", () => {
+      const result = parseCommand("show funding rates");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("manage markets");
+    });
+
+    it("parses 'list markets'", () => {
+      const result = parseCommand("list markets");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("manage markets");
+    });
+  });
+
+  describe("Order Book Commands", () => {
+    it("parses 'show btc order book'", () => {
+      const result = parseCommand("show btc order book");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("show book --perp btc");
+      expect(result.parsed?.type).toBe("book");
+      expect(result.parsed?.market).toBe("btc");
+    });
+
+    it("parses 'eth orderbook'", () => {
+      const result = parseCommand("eth orderbook");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("show book --perp eth");
+    });
+
+    it("parses 'show sol depth'", () => {
+      const result = parseCommand("show sol depth");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("show book --perp sol");
+    });
+
+    it("parses 'bitcoin book'", () => {
+      const result = parseCommand("bitcoin book");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("show book --perp btc");
+    });
+
+    it("returns error when market not specified", () => {
+      const result = parseCommand("show order book");
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("specify a market");
+    });
+  });
+
+  describe("Recent Trades Commands", () => {
+    it("parses 'recent btc trades'", () => {
+      const result = parseCommand("recent btc trades");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("show trades --perp btc");
+      expect(result.parsed?.type).toBe("trades");
+    });
+
+    it("parses 'show eth trades'", () => {
+      const result = parseCommand("show eth trades");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("show trades --perp eth");
+    });
+
+    it("parses 'solana trade history'", () => {
+      const result = parseCommand("solana trade history");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("show trades --perp sol");
+    });
+  });
+
+  describe("Deposit Commands", () => {
+    it("parses 'deposit 100'", () => {
+      const result = parseCommand("deposit 100");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("manage deposit --amount 100");
+      expect(result.parsed?.type).toBe("deposit");
+      expect(result.parsed?.amount).toBe(100);
+    });
+
+    it("parses 'deposit 50.5 usd'", () => {
+      const result = parseCommand("deposit 50.5 usd");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("manage deposit --amount 50.5");
+    });
+
+    it("returns error when amount not specified", () => {
+      const result = parseCommand("deposit");
+      expect(result.success).toBe(false);
+      expect(result.error).toContain("specify an amount");
+    });
+  });
+
+  describe("Withdraw Commands", () => {
+    it("parses 'withdraw 100'", () => {
+      const result = parseCommand("withdraw 100");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("manage withdraw --amount 100");
+      expect(result.parsed?.type).toBe("withdraw");
+      expect(result.parsed?.amount).toBe(100);
+    });
+
+    it("parses 'withdrawal 25'", () => {
+      const result = parseCommand("withdrawal 25");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("manage withdraw --amount 25");
+    });
+  });
+
+  describe("Cancel All Orders Commands", () => {
+    it("parses 'cancel all btc orders'", () => {
+      const result = parseCommand("cancel all btc orders");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("trade cancel-all --perp btc");
+      expect(result.parsed?.type).toBe("cancel-all");
+      expect(result.parsed?.market).toBe("btc");
+    });
+
+    it("parses 'cancel-all eth'", () => {
+      const result = parseCommand("cancel-all eth");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("trade cancel-all --perp eth");
+    });
+  });
+
+  describe("Cancel Single Order Commands", () => {
+    it("parses 'cancel btc order 123'", () => {
+      const result = parseCommand("cancel btc order 123");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("trade cancel --perp btc --order-id 123");
+      expect(result.parsed?.type).toBe("cancel");
+      expect(result.parsed?.orderId).toBe("123");
+    });
+
+    it("parses 'cancel my order #456 on eth'", () => {
+      const result = parseCommand("cancel my order #456 on eth");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("trade cancel --perp eth --order-id 456");
+    });
+  });
+
+  describe("Falls Back to Trade Parsing", () => {
+    it("parses trade when no query command matches", () => {
+      const result = parseCommand("long 0.01 btc at 78000 5x");
+      expect(result.success).toBe(true);
+      expect(result.command).toBe("trade open --perp btc --side long --size 0.01 --price 78000 --leverage 5");
+      expect(result.trade).toBeDefined();
+    });
+  });
+});
 
 describe("parseTrade", () => {
   describe("Basic Open Long Orders", () => {

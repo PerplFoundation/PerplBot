@@ -1,7 +1,8 @@
 ---
 name: perpl
 description: Trade on Perpl DEX - view markets, manage positions, execute trades
-disable-model-invocation: true
+model: haiku
+max-tokens: 100
 allowed-tools: Bash(npm run dev:*)
 argument-hint: <command> [args...]
 ---
@@ -9,6 +10,8 @@ argument-hint: <command> [args...]
 # Perpl Trading Skill
 
 Execute PerplBot CLI commands directly.
+
+**Response format**: Summarize results in 2 sentences maximum. Be concise.
 
 ## Usage
 
@@ -20,13 +23,35 @@ Pass CLI arguments directly after `/perpl`:
 
 ## Execution
 
-Run the following command with $ARGUMENTS passed through:
+If `$ARGUMENTS` is `help`, display the command list below instead of running CLI.
+
+Otherwise, run the following command with $ARGUMENTS passed through:
 
 ```bash
 npm run dev -- $ARGUMENTS
 ```
 
-## Available Commands
+## Available Commands (display this for `/perpl help`)
+
+```
+manage markets              - Show prices and funding rates
+manage status               - Show account balance and positions
+manage deposit --amount N   - Deposit USD collateral
+manage withdraw --amount N  - Withdraw USD collateral
+
+trade open --perp <market> --side <long|short> --size N --price N --leverage N
+trade close --perp <market> --side <long|short> --size N --price N
+trade cancel --perp <market> --order-id <id>
+trade cancel-all --perp <market>
+
+show book --perp <market>   - Show order book
+show trades --perp <market> - Show recent trades
+
+Options: --ioc (market order), --post-only (maker only)
+Markets: btc, eth, sol, mon, zec
+```
+
+## Command Details
 
 ### manage
 - `manage markets` - Show prices and funding rates

@@ -17,7 +17,7 @@ npm run build
 # Run CLI in development
 npm run dev -- <command>
 
-# Run tests (244 tests)
+# Run tests (297 tests)
 npm test
 
 # Run tests in watch mode
@@ -60,6 +60,9 @@ PerplBot/
 │   │   └── index.ts            # CLI entry point
 │   └── index.ts                # Main entry point
 ├── test/                       # Test files
+│   ├── api/                    # API client tests
+│   │   ├── client.test.ts      # REST API client tests
+│   │   └── websocket.test.ts   # WebSocket client tests
 │   ├── orders.test.ts          # Order construction tests
 │   ├── positions.test.ts       # Position calculation tests
 │   ├── keyManager.test.ts      # Key management tests
@@ -281,7 +284,7 @@ The `/reviewer` skill performs comprehensive code review with a senior engineer 
 
 **Verification Gate:**
 - `npm run typecheck` passes
-- `npm test` passes (244 tests)
+- `npm test` passes (297 tests)
 - No P0 or P1 issues remain
 - "Would a staff engineer approve this?"
 

@@ -32,5 +32,3 @@ coverage/
 *.mov
 *.mp4
 
-# Local workflow docs
-tasks/

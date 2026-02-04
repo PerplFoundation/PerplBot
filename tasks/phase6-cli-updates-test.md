@@ -6,7 +6,7 @@ Verify the CLI now supports `--no-api` flag and shows connection mode in status.
 ## Status: VERIFIED
 
 **Last tested**: 2026-02-04
-**Result**: 259/259 unit tests passing, typecheck passing
+**Result**: 297/297 unit tests passing, typecheck passing
 
 ## Changes Made
 
@@ -27,7 +27,7 @@ Verify the CLI now supports `--no-api` flag and shows connection mode in status.
 npm test
 ```
 
-**Expected**: All 259 tests pass
+**Expected**: All 297 tests pass
 **Result**: PASS
 
 ### 2. Type Check
@@ -89,7 +89,7 @@ Mode: Contract only
 ## Pass Criteria
 
 - [x] `npm run typecheck` passes
-- [x] `npm test` passes (259 tests)
+- [x] `npm test` passes (297 tests)
 - [x] `--no-api` flag accepted by CLI
 - [x] Status command shows connection mode
 - [x] API mode can be disabled via flag

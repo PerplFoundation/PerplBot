@@ -6,7 +6,7 @@ Verify the ExchangeStateTracker now supports WebSocket real-time updates with co
 ## Status: VERIFIED
 
 **Last tested**: 2026-02-04
-**Result**: 259/259 unit tests passing, typecheck passing
+**Result**: 297/297 unit tests passing, typecheck passing
 
 ## Changes Made
 
@@ -31,7 +31,7 @@ Verify the ExchangeStateTracker now supports WebSocket real-time updates with co
 npm test
 ```
 
-**Expected**: All 259 tests pass
+**Expected**: All 297 tests pass
 **Result**: PASS
 
 ### 2. Type Check
@@ -112,7 +112,7 @@ stateTracker.disconnectRealtime();
 ## Pass Criteria
 
 - [x] `npm run typecheck` passes
-- [x] `npm test` passes (259 tests)
+- [x] `npm test` passes (297 tests)
 - [x] ExchangeStateTracker extends EventEmitter
 - [x] `connectRealtime()` method accepts WebSocket client + auth
 - [x] Position/order/wallet events emitted on WebSocket updates

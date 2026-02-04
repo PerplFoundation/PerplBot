@@ -6,7 +6,7 @@ Verify the new API client layer (`src/sdk/api/`) works correctly against the liv
 ## Status: VERIFIED
 
 **Last tested**: 2026-02-04
-**Result**: 22/22 integration tests passing, 259/259 unit tests passing
+**Result**: 22/22 integration tests passing, 297/297 unit tests passing
 
 ## Prerequisites
 - PerplBot repo with `npm install` completed
@@ -20,12 +20,13 @@ Verify the new API client layer (`src/sdk/api/`) works correctly against the liv
 npm test
 ```
 
-**Expected**: All 259 tests pass, including 15 new API client tests.
-**Result**: PASS (259/259)
+**Expected**: All 297 tests pass, including 15 REST + 38 WebSocket API client tests.
+**Result**: PASS (297/297)
 
 | Test File | Tests | Status |
 |-----------|-------|--------|
 | `test/api/client.test.ts` | 15 | PASS |
+| `test/api/websocket.test.ts` | 38 | PASS |
 
 ---
 
@@ -118,7 +119,7 @@ await tradingWs.connectTrading(authNonce, authCookies);
 ## Pass Criteria
 
 - [x] `npm run typecheck` passes
-- [x] `npm test` passes (259 tests)
+- [x] `npm test` passes (297 tests)
 - [x] All REST client tests pass against live API
 - [x] WebSocket market data tests pass
 - [x] WebSocket trading tests pass (with whitelisted wallet)

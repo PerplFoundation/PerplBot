@@ -6,7 +6,7 @@ Verify the Portfolio class now uses API batch queries with contract fallback.
 ## Status: VERIFIED
 
 **Last tested**: 2026-02-04
-**Result**: 259/259 unit tests passing, typecheck passing
+**Result**: 297/297 unit tests passing, typecheck passing
 
 ## Changes Made
 
@@ -32,7 +32,7 @@ Verify the Portfolio class now uses API batch queries with contract fallback.
 npm test
 ```
 
-**Expected**: All 259 tests pass
+**Expected**: All 297 tests pass
 **Result**: PASS
 
 ### 2. Type Check
@@ -102,7 +102,7 @@ const allOpenOrders = await portfolio.getAllOpenOrders();
 ## Pass Criteria
 
 - [x] `npm run typecheck` passes
-- [x] `npm test` passes (259 tests)
+- [x] `npm test` passes (297 tests)
 - [x] Portfolio constructor accepts `apiClient` parameter
 - [x] `getPositions()` uses API when available
 - [x] Contract fallback works when API fails

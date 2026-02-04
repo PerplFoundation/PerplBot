@@ -1,6 +1,6 @@
 /**
  * Manage command - Direct account management from owner wallet
- * Supports API mode for faster queries
+ * Uses HybridClient for API-first reads with contract fallback
  */
 
 import type { Command } from "commander";
@@ -9,6 +9,7 @@ import {
   validateOwnerConfig,
   OwnerWallet,
   Exchange,
+  HybridClient,
   PERPETUALS,
   ALL_PERP_IDS,
   pnsToPrice,
@@ -50,19 +51,18 @@ export function registerManageCommand(program: Command): void {
       const exchange = new Exchange(
         config.chain.exchangeAddress,
         owner.publicClient,
-        owner.walletClient,
-        undefined,
-        apiClient
+        owner.walletClient
       );
+      const client = new HybridClient({ exchange, apiClient });
 
       console.log("Fetching account status...");
-      console.log(`Mode: ${useApi ? "API + Contract" : "Contract only"}\n`);
+      console.log(`Mode: ${client.isApiEnabled() ? "API + Contract" : "Contract only"}\n`);
 
       try {
         // Get account by owner address
         let accountInfo;
         try {
-          accountInfo = await exchange.getAccountByAddress(owner.address);
+          accountInfo = await client.getAccountByAddress(owner.address);
         } catch {
           console.log("=== Owner Wallet ===");
           console.log(`Address: ${owner.address}`);
@@ -100,13 +100,13 @@ export function registerManageCommand(program: Command): void {
         console.log("\n=== Positions ===");
 
         for (const [name, perpId] of Object.entries(PERPETUALS)) {
-          const { position, markPrice } = await exchange.getPosition(
+          const { position, markPrice } = await client.getPosition(
             perpId,
             accountInfo.accountId
           );
 
           if (position.lotLNS > 0n) {
-            const perpInfo = await exchange.getPerpetualInfo(perpId);
+            const perpInfo = await client.getPerpetualInfo(perpId);
             const priceDecimals = Number(perpInfo.priceDecimals);
             const lotDecimals = Number(perpInfo.lotDecimals);
 
@@ -160,6 +160,7 @@ export function registerManageCommand(program: Command): void {
         owner.publicClient,
         owner.walletClient
       );
+      const client = new HybridClient({ exchange });
 
       const amount = parseFloat(options.amount);
       const amountCNS = BigInt(Math.round(amount * 1e6));
@@ -168,7 +169,7 @@ export function registerManageCommand(program: Command): void {
       let accountExists = false;
       let accountInfo;
       try {
-        accountInfo = await exchange.getAccountByAddress(owner.address);
+        accountInfo = await client.getAccountByAddress(owner.address);
         accountExists = accountInfo.accountId > 0n;
       } catch {
         accountExists = false;
@@ -207,7 +208,7 @@ export function registerManageCommand(program: Command): void {
 
         // Get new account ID
         await owner.publicClient.waitForTransactionReceipt({ hash: createHash });
-        const newAccountInfo = await exchange.getAccountByAddress(owner.address);
+        const newAccountInfo = await client.getAccountByAddress(owner.address);
         console.log(`Account created with ID: ${newAccountInfo.accountId}`);
       } else {
         console.log(`Depositing ${amount} USD stable to account ${accountInfo!.accountId}...`);
@@ -291,6 +292,7 @@ export function registerManageCommand(program: Command): void {
       });
 
       const exchange = new Exchange(config.chain.exchangeAddress, publicClient);
+      const client = new HybridClient({ exchange });
 
       console.log("Fetching market data...\n");
 
@@ -306,7 +308,7 @@ export function registerManageCommand(program: Command): void {
 
       for (const perpId of ALL_PERP_IDS) {
         try {
-          const info = await exchange.getPerpetualInfo(perpId);
+          const info = await client.getPerpetualInfo(perpId);
           const priceDecimals = Number(info.priceDecimals);
           const lotDecimals = Number(info.lotDecimals);
 

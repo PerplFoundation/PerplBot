@@ -11,6 +11,7 @@ import {
   OperatorWallet,
   OwnerWallet,
   Exchange,
+  HybridClient,
   DelegatedAccount,
   PERPETUALS,
   priceToPNS,
@@ -84,7 +85,8 @@ export function registerDelegateCommand(program: Command): void {
 
       // Fetch perpetual info to get correct decimals
       const exchange = new Exchange(config.chain.exchangeAddress, operator.publicClient);
-      const perpInfo = await exchange.getPerpetualInfo(perpId);
+      const client = new HybridClient({ exchange });
+      const perpInfo = await client.getPerpetualInfo(perpId);
       const priceDecimals = BigInt(perpInfo.priceDecimals);
       const lotDecimals = BigInt(perpInfo.lotDecimals);
 
@@ -156,7 +158,8 @@ export function registerDelegateCommand(program: Command): void {
 
       // Fetch perpetual info to get correct decimals
       const exchange = new Exchange(config.chain.exchangeAddress, operator.publicClient);
-      const perpInfo = await exchange.getPerpetualInfo(perpId);
+      const client = new HybridClient({ exchange });
+      const perpInfo = await client.getPerpetualInfo(perpId);
       const priceDecimals = BigInt(perpInfo.priceDecimals);
       const lotDecimals = BigInt(perpInfo.lotDecimals);
 
@@ -249,6 +252,7 @@ export function registerDelegateCommand(program: Command): void {
         config.chain.exchangeAddress,
         operator.publicClient
       );
+      const client = new HybridClient({ exchange });
 
       const delegatedAccount = new DelegatedAccount(
         config.delegatedAccountAddress,
@@ -261,7 +265,7 @@ export function registerDelegateCommand(program: Command): void {
       console.log(`Fetching open orders for perp ${perpId}...`);
       console.log(`Account ID: ${accountId}`);
 
-      const orders = await exchange.getOpenOrders(perpId, accountId);
+      const orders = await client.getOpenOrders(perpId, accountId);
 
       if (orders.length === 0) {
         console.log("No open orders found.");
@@ -313,6 +317,7 @@ export function registerDelegateCommand(program: Command): void {
         config.chain.exchangeAddress,
         owner.publicClient
       );
+      const client = new HybridClient({ exchange });
 
       console.log("Fetching delegate account status...\n");
 
@@ -332,7 +337,7 @@ export function registerDelegateCommand(program: Command): void {
           return;
         }
 
-        const accountInfo = await exchange.getAccountById(accountId);
+        const accountInfo = await client.getAccountById(accountId);
 
         console.log("\n=== Exchange Account ===");
         console.log(`Balance: ${Number(accountInfo.balanceCNS) / 1e6} USD stable`);
@@ -344,13 +349,13 @@ export function registerDelegateCommand(program: Command): void {
         console.log("\n=== Positions ===");
 
         for (const [name, perpId] of Object.entries(PERPETUALS)) {
-          const { position, markPrice } = await exchange.getPosition(
+          const { position, markPrice } = await client.getPosition(
             perpId,
             accountId
           );
 
           if (position.lotLNS > 0n) {
-            const perpInfo = await exchange.getPerpetualInfo(perpId);
+            const perpInfo = await client.getPerpetualInfo(perpId);
             const priceDecimals = Number(perpInfo.priceDecimals);
             const lotDecimals = Number(perpInfo.lotDecimals);
 

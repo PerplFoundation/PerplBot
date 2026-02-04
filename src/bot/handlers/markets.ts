@@ -14,20 +14,20 @@ import {
   formatError,
   type MarketData,
 } from "../formatters/telegram.js";
-import { createExchange } from "../client.js";
+import { createHybridClient } from "../client.js";
 
 /**
  * Fetch market data for all perpetuals
  */
 export async function fetchMarketData(): Promise<MarketData[]> {
-  console.log("[MARKETS] Creating API-enabled exchange...");
-  const exchange = await createExchange({ authenticate: false });
+  console.log("[MARKETS] Creating HybridClient...");
+  const client = await createHybridClient({ authenticate: false });
 
   const markets: MarketData[] = [];
 
   for (const perpId of ALL_PERP_IDS) {
     try {
-      const info = await exchange.getPerpetualInfo(perpId);
+      const info = await client.getPerpetualInfo(perpId);
       const priceDecimals = BigInt(info.priceDecimals);
       const lotDecimals = BigInt(info.lotDecimals);
 

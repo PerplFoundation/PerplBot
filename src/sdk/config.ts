@@ -180,6 +180,16 @@ export const API_CONFIG: ApiConfig = {
 export const USE_API = process.env.PERPL_USE_API !== "false";
 
 /**
+ * Fallback behavior configuration
+ */
+export const FALLBACK_CONFIG = {
+  /** Log warnings when falling back to SDK */
+  logWarnings: process.env.PERPL_LOG_FALLBACK !== "false",
+  /** API request timeout in milliseconds */
+  apiTimeoutMs: parseInt(process.env.PERPL_API_TIMEOUT || "5000", 10),
+};
+
+/**
  * Get API configuration from environment
  */
 export function getApiConfig(): ApiConfig {

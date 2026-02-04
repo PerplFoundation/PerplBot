@@ -21,7 +21,7 @@ import {
   formatTradeResult,
   formatError,
 } from "../formatters/telegram.js";
-import { createExchange } from "../client.js";
+import { createHybridClient } from "../client.js";
 
 // Market name to ID mapping
 const PERP_NAMES: Record<string, bigint> = {
@@ -40,9 +40,9 @@ const pendingTrades: Map<number, ParsedTrade> = new Map();
  */
 async function getMarketPrice(perpId: bigint): Promise<number> {
   console.log("[TRADE] Getting market price...");
-  const exchange = await createExchange({ authenticate: false });
+  const client = await createHybridClient({ authenticate: false });
 
-  const perpInfo = await exchange.getPerpetualInfo(perpId);
+  const perpInfo = await client.getPerpetualInfo(perpId);
   const priceDecimals = BigInt(perpInfo.priceDecimals);
   return pnsToPrice(perpInfo.markPNS, priceDecimals);
 }
@@ -101,7 +101,7 @@ async function executeTrade(trade: ParsedTrade): Promise<{ success: boolean; txH
   try {
     console.log(`[TRADE] Executing: ${trade.action} ${trade.side} ${trade.size} ${trade.market}`);
 
-    const exchange = await createExchange({ withWalletClient: true });
+    const client = await createHybridClient({ withWalletClient: true });
 
     const perpId = PERP_NAMES[trade.market];
     if (perpId === undefined) {
@@ -109,7 +109,7 @@ async function executeTrade(trade: ParsedTrade): Promise<{ success: boolean; txH
     }
 
     // Get perpetual info for decimals
-    const perpInfo = await exchange.getPerpetualInfo(perpId);
+    const perpInfo = await client.getPerpetualInfo(perpId);
     const priceDecimals = BigInt(perpInfo.priceDecimals);
     const lotDecimals = BigInt(perpInfo.lotDecimals);
 
@@ -140,7 +140,7 @@ async function executeTrade(trade: ParsedTrade): Promise<{ success: boolean; txH
       amountCNS: 0n,
     };
 
-    const txHash = await exchange.execOrder(orderDesc);
+    const txHash = await client.execOrder(orderDesc);
     return { success: true, txHash };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Unknown error";

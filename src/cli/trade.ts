@@ -8,6 +8,7 @@ import {
   validateOwnerConfig,
   OwnerWallet,
   Exchange,
+  HybridClient,
   PERPETUALS,
   priceToPNS,
   lotToLNS,
@@ -65,6 +66,7 @@ export function registerTradeCommand(program: Command): void {
         owner.publicClient,
         owner.walletClient
       );
+      const client = new HybridClient({ exchange });
 
       const perpId = resolvePerpId(options.perp);
       const side = options.side.toLowerCase();
@@ -73,7 +75,7 @@ export function registerTradeCommand(program: Command): void {
       const leverage = parseFloat(options.leverage);
 
       // Get perpetual info for decimals
-      const perpInfo = await exchange.getPerpetualInfo(perpId);
+      const perpInfo = await client.getPerpetualInfo(perpId);
       const priceDecimals = BigInt(perpInfo.priceDecimals);
       const lotDecimals = BigInt(perpInfo.lotDecimals);
 
@@ -103,7 +105,7 @@ export function registerTradeCommand(program: Command): void {
       };
 
       try {
-        const txHash = await exchange.execOrder(orderDesc);
+        const txHash = await client.execOrder(orderDesc);
         console.log(`\nTransaction submitted: ${txHash}`);
       } catch (error) {
         console.error("Trade failed:", error);
@@ -133,6 +135,7 @@ export function registerTradeCommand(program: Command): void {
         owner.publicClient,
         owner.walletClient
       );
+      const client = new HybridClient({ exchange });
 
       const perpId = resolvePerpId(options.perp);
       const side = options.side.toLowerCase();
@@ -140,7 +143,7 @@ export function registerTradeCommand(program: Command): void {
       const price = parseFloat(options.price);
 
       // Get perpetual info for decimals
-      const perpInfo = await exchange.getPerpetualInfo(perpId);
+      const perpInfo = await client.getPerpetualInfo(perpId);
       const priceDecimals = BigInt(perpInfo.priceDecimals);
       const lotDecimals = BigInt(perpInfo.lotDecimals);
 
@@ -169,7 +172,7 @@ export function registerTradeCommand(program: Command): void {
       };
 
       try {
-        const txHash = await exchange.execOrder(orderDesc);
+        const txHash = await client.execOrder(orderDesc);
         console.log(`\nTransaction submitted: ${txHash}`);
       } catch (error) {
         console.error("Close failed:", error);
@@ -197,6 +200,7 @@ export function registerTradeCommand(program: Command): void {
         owner.publicClient,
         owner.walletClient
       );
+      const client = new HybridClient({ exchange });
 
       const perpId = resolvePerpId(options.perp);
       const orderId = BigInt(options.orderId);
@@ -221,7 +225,7 @@ export function registerTradeCommand(program: Command): void {
       };
 
       try {
-        const txHash = await exchange.execOrder(orderDesc);
+        const txHash = await client.execOrder(orderDesc);
         console.log(`\nTransaction submitted: ${txHash}`);
       } catch (error) {
         console.error("Cancel failed:", error);
@@ -248,8 +252,9 @@ export function registerTradeCommand(program: Command): void {
         owner.publicClient,
         owner.walletClient
       );
+      const client = new HybridClient({ exchange });
 
-      const accountInfo = await exchange.getAccountByAddress(owner.address);
+      const accountInfo = await client.getAccountByAddress(owner.address);
       const accountId = accountInfo.accountId;
 
       const perpId = resolvePerpId(options.perp);
@@ -257,7 +262,7 @@ export function registerTradeCommand(program: Command): void {
       console.log(`Fetching open orders for perp ${perpId}...`);
       console.log(`Account ID: ${accountId}`);
 
-      const orders = await exchange.getOpenOrders(perpId, accountId);
+      const orders = await client.getOpenOrders(perpId, accountId);
 
       if (orders.length === 0) {
         console.log("No open orders found.");
@@ -287,7 +292,7 @@ export function registerTradeCommand(program: Command): void {
 
         try {
           console.log(`Cancelling order ${order.orderId}...`);
-          const txHash = await exchange.execOrder(orderDesc);
+          const txHash = await client.execOrder(orderDesc);
           console.log(`  Tx: ${txHash}`);
           cancelled++;
         } catch (e: any) {

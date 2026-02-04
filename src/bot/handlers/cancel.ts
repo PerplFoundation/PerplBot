@@ -18,7 +18,7 @@ import {
   formatError,
   type OpenOrder,
 } from "../formatters/telegram.js";
-import { createExchange } from "../client.js";
+import { createHybridClient } from "../client.js";
 
 // Market name to ID mapping
 const PERP_NAMES: Record<string, bigint> = {
@@ -45,24 +45,24 @@ export async function fetchOpenOrders(market: Market): Promise<OpenOrder[]> {
 
   const owner = OwnerWallet.fromPrivateKey(config.ownerPrivateKey, config.chain);
 
-  console.log("[CANCEL] Creating API-enabled exchange...");
-  const exchange = await createExchange({ withWalletClient: true });
+  console.log("[CANCEL] Creating HybridClient...");
+  const client = await createHybridClient({ withWalletClient: true });
 
   const perpId = PERP_NAMES[market];
 
   // Get account
-  const accountInfo = await exchange.getAccountByAddress(owner.address);
+  const accountInfo = await client.getAccountByAddress(owner.address);
   if (accountInfo.accountId === 0n) {
     return [];
   }
 
   // Get perpetual info for decimals
-  const perpInfo = await exchange.getPerpetualInfo(perpId);
+  const perpInfo = await client.getPerpetualInfo(perpId);
   const priceDecimals = Number(perpInfo.priceDecimals);
   const lotDecimals = Number(perpInfo.lotDecimals);
 
   // Get open orders
-  const orders = await exchange.getOpenOrders(perpId, accountInfo.accountId);
+  const orders = await client.getOpenOrders(perpId, accountInfo.accountId);
 
   return orders.map((order) => ({
     orderId: order.orderId,
@@ -99,7 +99,7 @@ export async function cancelOrder(
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
     console.log(`[CANCEL] Cancelling order ${orderId} on ${market}...`);
-    const exchange = await createExchange({ withWalletClient: true });
+    const client = await createHybridClient({ withWalletClient: true });
 
     const perpId = PERP_NAMES[market];
 
@@ -120,7 +120,7 @@ export async function cancelOrder(
       amountCNS: 0n,
     };
 
-    const txHash = await exchange.execOrder(orderDesc);
+    const txHash = await client.execOrder(orderDesc);
     return { success: true, txHash };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
@@ -162,18 +162,18 @@ export async function cancelAllOrders(market: Market): Promise<{
   const owner = OwnerWallet.fromPrivateKey(config.ownerPrivateKey, config.chain);
 
   console.log(`[CANCEL] Cancelling all ${market} orders...`);
-  const exchange = await createExchange({ withWalletClient: true });
+  const client = await createHybridClient({ withWalletClient: true });
 
   const perpId = PERP_NAMES[market];
 
   // Get account
-  const accountInfo = await exchange.getAccountByAddress(owner.address);
+  const accountInfo = await client.getAccountByAddress(owner.address);
   if (accountInfo.accountId === 0n) {
     return { cancelled: 0, total: 0 };
   }
 
   // Get open orders
-  const orders = await exchange.getOpenOrders(perpId, accountInfo.accountId);
+  const orders = await client.getOpenOrders(perpId, accountInfo.accountId);
 
   if (orders.length === 0) {
     return { cancelled: 0, total: 0 };
@@ -199,7 +199,7 @@ export async function cancelAllOrders(market: Market): Promise<{
     };
 
     try {
-      await exchange.execOrder(orderDesc);
+      await client.execOrder(orderDesc);
       cancelled++;
     } catch {
       // Order may have been filled or cancelled already

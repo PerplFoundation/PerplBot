@@ -1,6 +1,6 @@
 /**
  * Shared API client for bot handlers
- * Provides API-enabled Exchange instances with logging
+ * Provides HybridClient instances with API-first reads and contract fallback
  */
 
 import { createPublicClient, createWalletClient, http } from "viem";
@@ -8,6 +8,7 @@ import { privateKeyToAccount } from "viem/accounts";
 import {
   loadEnvConfig,
   Exchange,
+  HybridClient,
   PerplApiClient,
   API_CONFIG,
   USE_API,
@@ -59,12 +60,12 @@ export async function ensureAuthenticated(): Promise<void> {
 }
 
 /**
- * Create an API-enabled Exchange instance
+ * Create a HybridClient with API-first reads and contract fallback
  */
-export async function createExchange(options?: {
+export async function createHybridClient(options?: {
   withWalletClient?: boolean;
   authenticate?: boolean;
-}): Promise<Exchange> {
+}): Promise<HybridClient> {
   const config = loadEnvConfig();
   const { withWalletClient = false, authenticate = true } = options ?? {};
 
@@ -86,30 +87,47 @@ export async function createExchange(options?: {
   }
 
   // Get API client and authenticate if enabled
-  let client: PerplApiClient | undefined;
+  let apiClient: PerplApiClient | undefined;
   if (USE_API) {
-    client = getApiClient();
+    apiClient = getApiClient();
     if (authenticate) {
       try {
         await ensureAuthenticated();
       } catch (error) {
         console.log(`[API] Auth failed, using contract fallback: ${error}`);
-        client = undefined;
+        apiClient = undefined;
       }
     }
   }
 
+  // Create Exchange (SDK-only, no API)
   const exchange = new Exchange(
     config.chain.exchangeAddress,
     publicClient,
-    walletClient,
-    undefined,
-    client
+    walletClient
   );
 
-  console.log(`[API] Exchange created, API enabled: ${exchange.isApiEnabled()}`);
+  // Wrap in HybridClient
+  const hybrid = new HybridClient({
+    exchange,
+    apiClient,
+  });
 
-  return exchange;
+  console.log(`[HybridClient] Created, API enabled: ${hybrid.isApiEnabled()}`);
+
+  return hybrid;
+}
+
+/**
+ * Create an Exchange instance (for backwards compatibility)
+ * @deprecated Use createHybridClient instead
+ */
+export async function createExchange(options?: {
+  withWalletClient?: boolean;
+  authenticate?: boolean;
+}): Promise<Exchange> {
+  const hybrid = await createHybridClient(options);
+  return hybrid.getExchange();
 }
 
 /**

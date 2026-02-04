@@ -121,6 +121,28 @@ PerplBot/
 
 Use `npx tsx scripts/check-markets.ts` to check market status.
 
+### API Authentication vs Smart Contract Account
+
+**Important**: These are separate concepts that are often confused.
+
+| Concept | What It Means | How to Check |
+|---------|---------------|--------------|
+| **API Auth** | Wallet is whitelisted to use REST/WS API | `/auth` endpoint succeeds |
+| **Exchange Account** | On-chain account exists with collateral | `manage status` shows account ID |
+
+- The API `/auth` endpoint accepts any whitelisted wallet address
+- Successful API authentication does NOT create an exchange account
+- An exchange account must be created on-chain via `createAccount()` with initial deposit
+- Trading requires BOTH: API auth (for API mode) AND exchange account (for on-chain execution)
+
+```bash
+# Check if account exists
+npm run dev -- manage status
+
+# Create account if needed (deposits collateral and creates account)
+npm run dev -- manage deposit --amount 100
+```
+
 ## CLI Commands
 
 ### Deploy New Account

@@ -27,4 +27,5 @@
 
 export { PerplApiClient, ApiError } from "./client.js";
 export { PerplWebSocketClient, MessageType } from "./websocket.js";
+export { HybridClient, type HybridClientOptions, type HybridOpenOrder, type HybridPosition } from "./hybrid.js";
 export * from "./types.js";

@@ -189,6 +189,29 @@ await operator.reduceLong({
 await operator.addMargin(16n, amountToCNS(100)); // Add 100 USD to BTC position
 ```
 
+### Using HybridClient (API + SDK Fallback)
+```typescript
+import { Exchange, HybridClient, PerplApiClient, API_CONFIG } from "perplbot";
+
+// Create Exchange and optional API client
+const exchange = new Exchange(exchangeAddress, publicClient, walletClient);
+const apiClient = new PerplApiClient(API_CONFIG);
+
+// Authenticate API client
+await apiClient.authenticate(address, signMessage);
+
+// Create HybridClient (API-first with contract fallback)
+const client = new HybridClient({ exchange, apiClient });
+
+// Reads try API first, fall back to contract
+const position = await client.getPosition(perpId, accountId);
+const perpInfo = await client.getPerpetualInfo(perpId);
+const orders = await client.getOpenOrders(perpId, accountId);
+
+// Writes always go through contract
+const txHash = await client.execOrder(orderDesc);
+```
+
 ### Portfolio Queries
 ```typescript
 import { Portfolio, Exchange, getChainConfig } from "perplbot";
@@ -298,10 +321,86 @@ OPERATOR_PRIVATE_KEY=your_operator_key
 DELEGATED_ACCOUNT_ADDRESS=deployed_address
 ```
 
+## API vs SDK Mode
+
+PerplBot uses a **HybridClient** that provides API-first reads with automatic
+fallback to direct contract calls when the API is unavailable.
+
+### How It Works
+
+1. **Reads**: Try REST API first (faster), fall back to contract calls on failure
+2. **Writes**: Always use contract calls (on-chain transactions required)
+
+### Important: API Auth vs Smart Contract Account
+
+**API authentication and smart contract account creation are separate:**
+
+- **API Authentication**: The `/auth` endpoint accepts any whitelisted wallet address. Successful authentication only means your wallet is authorized to use the API.
+- **Smart Contract Account**: An exchange account must be created on-chain by calling `createAccount()` with an initial deposit. This is required before trading.
+
+A wallet can authenticate with the API but still have no exchange account. Always check if an account exists before trading:
+
+```bash
+# This will show "No exchange account found" if account doesn't exist
+npx perplbot manage status
+
+# Create account with initial deposit
+npx perplbot manage deposit --amount 100
+```
+
+### Environment Variables
+
+```bash
+# API mode control (default: true)
+PERPL_USE_API=true|false
+
+# API configuration
+PERPL_API_URL=https://testnet.perpl.xyz/api
+PERPL_WS_URL=wss://testnet.perpl.xyz
+
+# Fallback behavior
+PERPL_LOG_FALLBACK=true|false  # Log when falling back to SDK (default: true)
+PERPL_API_TIMEOUT=5000         # API timeout in ms (default: 5000)
+```
+
+### When to Use SDK-Only Mode
+
+Set `PERPL_USE_API=false` when:
+- Debugging API-related issues
+- API is down or returning incorrect data
+- Need to verify on-chain state directly
+- Testing contract interaction
+
+### Example
+
+```bash
+# Default (API + fallback)
+npx perplbot manage status
+
+# Force SDK-only
+PERPL_USE_API=false npx perplbot manage status
+```
+
 ## Error Handling
 
 - `OnlyOwnerOrOperator`: Caller is not authorized
 - `SelectorNotAllowed`: Operator trying to call non-allowlisted function (e.g., withdraw)
-- `AccountNotCreated`: Need to create exchange account first
+- `AccountNotCreated`: Need to create exchange account first (see note below)
 - `InsufficientBalance`: Not enough collateral for operation
 - `ZeroAmount`: Tried to deposit/withdraw zero
+
+### Common Issue: "No exchange account found"
+
+**API authentication does NOT create a smart contract account.** If you see this error:
+1. Your wallet authenticated with the API successfully
+2. But no exchange account exists on-chain for this wallet
+
+**Solution**: Create an account with an initial deposit:
+```bash
+npx perplbot manage deposit --amount 100
+```
+
+This calls `createAccount()` on the Exchange contract, which:
+- Creates your account with a unique account ID
+- Deposits the specified amount as initial collateral
+- Enables trading on all perpetual markets

@@ -17,7 +17,7 @@ import {
 import { OrderType, type OrderDesc } from "../../sdk/contracts/Exchange.js";
 import type { Market } from "../../cli/tradeParser.js";
 import { formatError } from "../formatters/telegram.js";
-import { createExchange } from "../client.js";
+import { createHybridClient } from "../client.js";
 
 // Market name to ID mapping
 const PERP_NAMES: Record<string, bigint> = {
@@ -54,7 +54,7 @@ async function closePosition(market: Market): Promise<{
 }> {
   try {
     console.log(`[CLOSE] Closing ${market} position...`);
-    const exchange = await createExchange({ withWalletClient: true });
+    const client = await createHybridClient({ withWalletClient: true });
 
     const config = loadEnvConfig();
     validateOwnerConfig(config);
@@ -63,20 +63,20 @@ async function closePosition(market: Market): Promise<{
     const perpId = PERP_NAMES[market];
 
     // Get account
-    const accountInfo = await exchange.getAccountByAddress(owner.address);
+    const accountInfo = await client.getAccountByAddress(owner.address);
     if (accountInfo.accountId === 0n) {
       return { success: false, error: "No exchange account found" };
     }
 
     // Get position
-    const { position, markPrice } = await exchange.getPosition(perpId, accountInfo.accountId);
+    const { position, markPrice } = await client.getPosition(perpId, accountInfo.accountId);
 
     if (position.lotLNS === 0n) {
       return { success: true, noPosition: true };
     }
 
     // Get perpetual info for decimals
-    const perpInfo = await exchange.getPerpetualInfo(perpId);
+    const perpInfo = await client.getPerpetualInfo(perpId);
     const priceDecimals = BigInt(perpInfo.priceDecimals);
     const lotDecimals = BigInt(perpInfo.lotDecimals);
 
@@ -106,7 +106,7 @@ async function closePosition(market: Market): Promise<{
       amountCNS: 0n,
     };
 
-    const txHash = await exchange.execOrder(orderDesc);
+    const txHash = await client.execOrder(orderDesc);
     return { success: true, txHash };
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
@@ -153,10 +153,10 @@ async function closeAll(specificMarket?: Market): Promise<{
   const owner = OwnerWallet.fromPrivateKey(config.ownerPrivateKey, config.chain);
 
   console.log(`[CLOSE] Closing all ${specificMarket || "positions"}...`);
-  const exchange = await createExchange({ withWalletClient: true });
+  const client = await createHybridClient({ withWalletClient: true });
 
   // Get account
-  const accountInfo = await exchange.getAccountByAddress(owner.address);
+  const accountInfo = await client.getAccountByAddress(owner.address);
   if (accountInfo.accountId === 0n) {
     return { ordersCancelled: 0, positionsClosed: 0, errors: ["No exchange account found"] };
   }
@@ -175,7 +175,7 @@ async function closeAll(specificMarket?: Market): Promise<{
 
     try {
       // Cancel all open orders for this market
-      const orders = await exchange.getOpenOrders(perpId, accountInfo.accountId);
+      const orders = await client.getOpenOrders(perpId, accountInfo.accountId);
 
       for (const order of orders) {
         try {
@@ -195,7 +195,7 @@ async function closeAll(specificMarket?: Market): Promise<{
             lastExecutionBlock: 0n,
             amountCNS: 0n,
           };
-          await exchange.execOrder(cancelDesc);
+          await client.execOrder(cancelDesc);
           ordersCancelled++;
         } catch (e: any) {
           errors.push(`Failed to cancel ${perpName} order #${order.orderId}: ${e.message}`);
@@ -203,11 +203,11 @@ async function closeAll(specificMarket?: Market): Promise<{
       }
 
       // Close position if exists
-      const { position, markPrice } = await exchange.getPosition(perpId, accountInfo.accountId);
+      const { position, markPrice } = await client.getPosition(perpId, accountInfo.accountId);
 
       if (position.lotLNS > 0n) {
         try {
-          const perpInfo = await exchange.getPerpetualInfo(perpId);
+          const perpInfo = await client.getPerpetualInfo(perpId);
           const priceDecimals = BigInt(perpInfo.priceDecimals);
 
           const isLong = Number(position.positionType) === 0;
@@ -233,7 +233,7 @@ async function closeAll(specificMarket?: Market): Promise<{
             amountCNS: 0n,
           };
 
-          await exchange.execOrder(closeDesc);
+          await client.execOrder(closeDesc);
           positionsClosed++;
         } catch (e: any) {
           errors.push(`Failed to close ${perpName} position: ${e.message}`);

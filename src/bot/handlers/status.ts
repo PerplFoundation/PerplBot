@@ -18,7 +18,7 @@ import {
   type AccountStatus,
   type PositionData,
 } from "../formatters/telegram.js";
-import { createExchange } from "../client.js";
+import { createHybridClient } from "../client.js";
 
 /**
  * Fetch account status data
@@ -32,13 +32,13 @@ export async function fetchAccountStatus(): Promise<{
 
   const owner = OwnerWallet.fromPrivateKey(config.ownerPrivateKey, config.chain);
 
-  console.log("[STATUS] Creating API-enabled exchange...");
-  const exchange = await createExchange({ withWalletClient: true });
+  console.log("[STATUS] Creating HybridClient...");
+  const client = await createHybridClient({ withWalletClient: true });
 
   // Try to get account
   let accountInfo;
   try {
-    accountInfo = await exchange.getAccountByAddress(owner.address);
+    accountInfo = await client.getAccountByAddress(owner.address);
   } catch {
     // No account found
     const ownerEthBalance = await owner.getEthBalance();
@@ -72,13 +72,13 @@ export async function fetchAccountStatus(): Promise<{
   const positions: PositionData[] = [];
 
   for (const [name, perpId] of Object.entries(PERPETUALS)) {
-    const { position, markPrice } = await exchange.getPosition(
+    const { position, markPrice } = await client.getPosition(
       perpId,
       accountInfo.accountId
     );
 
     if (position.lotLNS > 0n) {
-      const perpInfo = await exchange.getPerpetualInfo(perpId);
+      const perpInfo = await client.getPerpetualInfo(perpId);
       const priceDecimals = BigInt(perpInfo.priceDecimals);
       const lotDecimals = BigInt(perpInfo.lotDecimals);
 

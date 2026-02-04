@@ -468,6 +468,8 @@ npm run dev -- manage status
 
 ## Test Summary Checklist
 
+### CLI Tests
+
 | Test | API Mode | SDK Mode | Notes |
 |------|----------|----------|-------|
 | T1 manage status | [x] Pass | - | Shows "Mode: API + Contract" |
@@ -476,18 +478,28 @@ npm run dev -- manage status
 | T4 manage markets | - | [x] Pass | Same data as T3 |
 | T5 show book | [x] Pass | [x] Pass | Orderbook with mark price |
 | T6 show trades | [x] Pass | [x] Pass | Recent trades display |
-| T7 cancel-all | [x] Pass | - | No open orders (expected) |
+| T7 cancel-all | [x] Pass | - | Uses contract order IDs |
 | T8 cancel-all | - | [x] Pass | Same behavior as T7 |
 | T9 delegate status | [ ] Skip | [ ] Skip | No delegated account configured |
 | T10 fallback | [x] Pass | - | Silently falls back |
-| T11 trade open | [ ] Skip | [ ] Skip | Requires live trade |
-| T12 trade close | [ ] Skip | [ ] Skip | Requires open position |
+| T11 trade open | [x] Pass | [x] Pass | Tested via bot |
+| T12 trade close | [x] Pass | [x] Pass | Tested via bot |
 | T13 delegate trade | [ ] Skip | [ ] Skip | No delegated account |
 | T14 performance | [x] 1.21s | [x] 0.96s | SDK faster (no auth overhead) |
 | T15 invalid perp | [x] Pass | [x] Pass | "Unknown perpetual: invalid" |
 | T16 no account | [ ] Skip | [ ] Skip | No wallet without account |
 
-**Unit Tests**: 297/297 passed
+### Telegram Bot Tests
+
+| Test | API Mode | SDK Mode | Notes |
+|------|----------|----------|-------|
+| Bot startup | [x] Pass | [x] Pass | Logs show correct mode |
+| Trade execution | [x] Pass | [x] Pass | Market orders fill successfully |
+| Cancel orders | [x] Pass | [x] Pass | Fixed order ID mismatch bug |
+| Close positions | [x] Pass | [x] Pass | Close all works correctly |
+| Error handling | [x] Pass | [x] Pass | Contract reverts logged properly |
+
+**Unit Tests**: 305/305 passed (8 new HybridClient tests)
 
 ---
 
@@ -505,23 +517,57 @@ npm run dev -- manage status
 **Tested on**: 2026-02-04
 **Environment**: Monad Testnet (Chain ID: 10143)
 **Account ID**: 272
-**Balance**: 4994.18 USD stable
+**Balance**: ~4994 USD stable
 
-### Passed Tests (12/16)
+### Passed Tests (14/16 CLI + 5/5 Bot)
 - T1-T8: Core read operations (status, markets, orderbook, trades, cancel-all)
 - T10: API fallback behavior
+- T11-T12: Trade execution via Telegram bot
 - T14: Performance measurement
 - T15: Error handling for invalid perpetual
+- All Telegram bot tests passed
 
-### Skipped Tests (4/16)
+### Skipped Tests (2/16)
 - T9, T13: Delegated account not configured
-- T11, T12: Would require live trade execution
 - T16: No wallet without exchange account available
+
+### Bug Found and Fixed
+
+**Issue**: Order cancellation failing with "Execution reverted"
+
+**Root Cause**: API returns global/composite order IDs (e.g., `10631381024`) that don't match
+contract's local bitmap-based IDs (e.g., `14`). Using API order IDs for cancellation caused failures.
+
+**Fix**: `getOpenOrders()` now always uses contract, never API (commit `521aa07`)
+
+**Verification**:
+- Cancel operations now work in both API and SDK modes
+- 8 new unit tests added to prevent regression
+
+### Telegram Bot Test Results
+
+**API Mode** (`PERPL_USE_API=true`):
+```
+[HybridClient] Created, API enabled: true
+[TRADE] Success: 0x74d0e16f... (long 0.1 btc)
+[TRADE] Success: 0xf20b5b1b... (short 0.1 eth)
+[TRADE] Success: 0xf0946073... (long 2 zec)
+[TRADE] Success: 0xbf000d05... (short 100 sol)
+```
+
+**SDK Mode** (`PERPL_USE_API=false`):
+```
+[HybridClient] Created, API enabled: false
+[TRADE] Success: 0x39fd8a7c... (short 0.2 btc)
+[TRADE] Success: 0x852e12b7... (short 100 mon)
+[TRADE] Success: 0xa52e87af... (long 1 zec)
+```
 
 ### Notes
 
 - All tests run on Monad testnet
 - Ensure sufficient testnet MON for gas fees
-- Some tests may need existing positions/orders to fully verify
+- Some trades may fail due to insufficient liquidity or margin (contract-level rejection)
 - API availability may affect test results - run fallback tests if API is down
 - SDK mode slightly faster than API mode for simple queries (no auth overhead)
+- Order ID fix ensures cancel operations use contract IDs, not API IDs

@@ -17,7 +17,7 @@ npm run build
 # Run CLI in development
 npm run dev -- <command>
 
-# Run tests (156 tests)
+# Run tests (244 tests)
 npm test
 
 # Run tests in watch mode
@@ -243,7 +243,50 @@ with the pattern
 - **Minimal Impact**: Changes should only touch what's necessary. Avoid introducing bugs.
 - **Document Features**: When adding new features, update all relevant docs (README.md, CLAUDE.md, skill files, /perpl help).
 
+## Claude Code Skills
+
+### Available Skills
+
+| Skill | Description | Usage |
+|-------|-------------|-------|
+| `/perpl` | Execute CLI commands directly | `/perpl manage status` |
+| `/perpl-type` | Natural language trading | `/perpl-type long 0.01 btc at 78000 5x` |
+| `/reviewer` | Code review expert | `/reviewer` or `/reviewer <file>` |
+
+### Reviewer Skill
+
+The `/reviewer` skill performs comprehensive code review with a senior engineer perspective:
+
+**Review Dimensions:**
+1. SOLID principles violations
+2. Security vulnerabilities (XSS, injection, SSRF, etc.)
+3. Performance issues (N+1 queries, missing caching)
+4. Error handling gaps
+5. Boundary condition bugs
+6. Dead code detection
+
+**Severity Levels:**
+- **P0**: Security/data loss - block merge
+- **P1**: Runtime bugs - must fix
+- **P2**: Quality issues - should fix
+- **P3**: Style/preference - optional
+
+**Usage:**
+```bash
+/reviewer              # Review uncommitted changes
+/reviewer --staged     # Review staged changes only
+/reviewer <file>       # Review specific file
+/reviewer --pr 123     # Review PR #123
+```
+
+**Verification Gate:**
+- `npm run typecheck` passes
+- `npm test` passes (244 tests)
+- No P0 or P1 issues remain
+- "Would a staff engineer approve this?"
+
 ## References
 
+- [api-docs](https://github.com/0x70626a/api-docs) — Perpl REST & WebSocket API documentation
 - [delegated-account](https://github.com/PerplFoundation/delegated-account) — Owner/operator smart contract
 - [dex-sdk](https://github.com/PerplFoundation/dex-sdk) — Perpl exchange SDK and ABIs

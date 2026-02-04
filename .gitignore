@@ -27,3 +27,10 @@ npm-debug.log*
 
 # Test coverage
 coverage/
+
+# Video files
+*.mov
+*.mp4
+
+# Local workflow docs
+tasks/

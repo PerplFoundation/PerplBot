@@ -4,10 +4,7 @@
  */
 
 import type { Context } from "telegraf";
-import { createPublicClient, http } from "viem";
 import {
-  loadEnvConfig,
-  Exchange,
   ALL_PERP_IDS,
   pnsToPrice,
   lnsToLot,
@@ -17,19 +14,14 @@ import {
   formatError,
   type MarketData,
 } from "../formatters/telegram.js";
+import { createExchange } from "../client.js";
 
 /**
  * Fetch market data for all perpetuals
  */
 export async function fetchMarketData(): Promise<MarketData[]> {
-  const config = loadEnvConfig();
-
-  const publicClient = createPublicClient({
-    chain: config.chain.chain,
-    transport: http(config.chain.rpcUrl),
-  });
-
-  const exchange = new Exchange(config.chain.exchangeAddress, publicClient);
+  console.log("[MARKETS] Creating API-enabled exchange...");
+  const exchange = await createExchange({ authenticate: false });
 
   const markets: MarketData[] = [];
 

@@ -7,10 +7,7 @@ import {
   loadEnvConfig,
   validateOwnerConfig,
   OwnerWallet,
-  Exchange,
   PERPETUALS,
-  pnsToPrice,
-  lnsToLot,
 } from "../../sdk/index.js";
 import { OrderType, type OrderDesc } from "../../sdk/contracts/Exchange.js";
 import type { Market } from "../../cli/tradeParser.js";
@@ -21,6 +18,7 @@ import {
   formatError,
   type OpenOrder,
 } from "../formatters/telegram.js";
+import { createExchange } from "../client.js";
 
 // Market name to ID mapping
 const PERP_NAMES: Record<string, bigint> = {
@@ -47,11 +45,8 @@ export async function fetchOpenOrders(market: Market): Promise<OpenOrder[]> {
 
   const owner = OwnerWallet.fromPrivateKey(config.ownerPrivateKey, config.chain);
 
-  const exchange = new Exchange(
-    config.chain.exchangeAddress,
-    owner.publicClient,
-    owner.walletClient
-  );
+  console.log("[CANCEL] Creating API-enabled exchange...");
+  const exchange = await createExchange({ withWalletClient: true });
 
   const perpId = PERP_NAMES[market];
 
@@ -103,16 +98,8 @@ export async function cancelOrder(
   orderId: string
 ): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
-    const config = loadEnvConfig();
-    validateOwnerConfig(config);
-
-    const owner = OwnerWallet.fromPrivateKey(config.ownerPrivateKey, config.chain);
-
-    const exchange = new Exchange(
-      config.chain.exchangeAddress,
-      owner.publicClient,
-      owner.walletClient
-    );
+    console.log(`[CANCEL] Cancelling order ${orderId} on ${market}...`);
+    const exchange = await createExchange({ withWalletClient: true });
 
     const perpId = PERP_NAMES[market];
 
@@ -174,11 +161,8 @@ export async function cancelAllOrders(market: Market): Promise<{
 
   const owner = OwnerWallet.fromPrivateKey(config.ownerPrivateKey, config.chain);
 
-  const exchange = new Exchange(
-    config.chain.exchangeAddress,
-    owner.publicClient,
-    owner.walletClient
-  );
+  console.log(`[CANCEL] Cancelling all ${market} orders...`);
+  const exchange = await createExchange({ withWalletClient: true });
 
   const perpId = PERP_NAMES[market];
 

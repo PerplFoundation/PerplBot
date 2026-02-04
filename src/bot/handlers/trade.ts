@@ -9,8 +9,6 @@ import type { ParsedTrade } from "../../cli/tradeParser.js";
 import {
   loadEnvConfig,
   validateOwnerConfig,
-  OwnerWallet,
-  Exchange,
   PERPETUALS,
   priceToPNS,
   lotToLNS,
@@ -23,6 +21,7 @@ import {
   formatTradeResult,
   formatError,
 } from "../formatters/telegram.js";
+import { createExchange } from "../client.js";
 
 // Market name to ID mapping
 const PERP_NAMES: Record<string, bigint> = {
@@ -40,12 +39,8 @@ const pendingTrades: Map<number, ParsedTrade> = new Map();
  * Get current market price for a perpetual
  */
 async function getMarketPrice(perpId: bigint): Promise<number> {
-  const config = loadEnvConfig();
-  const owner = OwnerWallet.fromPrivateKey(config.ownerPrivateKey!, config.chain);
-  const exchange = new Exchange(
-    config.chain.exchangeAddress,
-    owner.publicClient
-  );
+  console.log("[TRADE] Getting market price...");
+  const exchange = await createExchange({ authenticate: false });
 
   const perpInfo = await exchange.getPerpetualInfo(perpId);
   const priceDecimals = BigInt(perpInfo.priceDecimals);
@@ -104,16 +99,9 @@ export async function showTradeConfirmation(
  */
 async function executeTrade(trade: ParsedTrade): Promise<{ success: boolean; txHash?: string; error?: string }> {
   try {
-    const config = loadEnvConfig();
-    validateOwnerConfig(config);
+    console.log(`[TRADE] Executing: ${trade.action} ${trade.side} ${trade.size} ${trade.market}`);
 
-    const owner = OwnerWallet.fromPrivateKey(config.ownerPrivateKey, config.chain);
-
-    const exchange = new Exchange(
-      config.chain.exchangeAddress,
-      owner.publicClient,
-      owner.walletClient
-    );
+    const exchange = await createExchange({ withWalletClient: true });
 
     const perpId = PERP_NAMES[trade.market];
     if (perpId === undefined) {

@@ -8,7 +8,6 @@ import {
   loadEnvConfig,
   validateOwnerConfig,
   OwnerWallet,
-  Exchange,
   PERPETUALS,
   pnsToPrice,
   lnsToLot,
@@ -19,6 +18,7 @@ import {
   type AccountStatus,
   type PositionData,
 } from "../formatters/telegram.js";
+import { createExchange } from "../client.js";
 
 /**
  * Fetch account status data
@@ -32,11 +32,8 @@ export async function fetchAccountStatus(): Promise<{
 
   const owner = OwnerWallet.fromPrivateKey(config.ownerPrivateKey, config.chain);
 
-  const exchange = new Exchange(
-    config.chain.exchangeAddress,
-    owner.publicClient,
-    owner.walletClient
-  );
+  console.log("[STATUS] Creating API-enabled exchange...");
+  const exchange = await createExchange({ withWalletClient: true });
 
   // Try to get account
   let accountInfo;

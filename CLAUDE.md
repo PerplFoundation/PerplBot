@@ -290,6 +290,6 @@ The `/reviewer` skill performs comprehensive code review with a senior engineer 
 
 ## References
 
-- [api-docs](https://github.com/0x70626a/api-docs) — Perpl REST & WebSocket API documentation
+- [api-docs](https://github.com/PerplFoundation/api-docs) — Perpl REST & WebSocket API documentation
 - [delegated-account](https://github.com/PerplFoundation/delegated-account) — Owner/operator smart contract
 - [dex-sdk](https://github.com/PerplFoundation/dex-sdk) — Perpl exchange SDK and ABIs

@@ -55,7 +55,7 @@ export interface TradeResult {
 /**
  * Escape special markdown characters for Telegram MarkdownV2
  */
-function escapeMarkdown(text: string): string {
+export function escapeMarkdown(text: string): string {
   return text.replace(/[_*[\]()~`>#+\-=|{}.!]/g, "\\$&");
 }
 

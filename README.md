@@ -159,6 +159,10 @@ npm run dev -- trade open --perp btc --side long --size 0.1 --price 46000 --leve
 npm run dev -- trade cancel --perp btc --order-id 123
 npm run dev -- trade cancel-all --perp btc
 
+# Close Positions
+npm run dev -- trade close-all            # Close ALL positions + cancel ALL orders
+npm run dev -- trade close-all --perp btc # Close BTC only
+
 # Deployment
 npm run dev -- deploy --implementation <addr> --operator <hot-wallet> --deposit 100
 ```

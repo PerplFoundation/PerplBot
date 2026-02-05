@@ -2,9 +2,12 @@
  * Close handlers - Close positions and cancel orders
  * "close position" - closes a specific market position
  * "close all" - cancels all orders and closes all positions
+ *
+ * Supports both single-user (owner wallet) and multi-user (delegated account) modes.
  */
 
 import type { BotContext } from "../types.js";
+import type { User } from "../db/schema.js";
 import {
   loadEnvConfig,
   validateOwnerConfig,
@@ -17,7 +20,9 @@ import {
 import { OrderType, type OrderDesc } from "../../sdk/contracts/Exchange.js";
 import type { Market } from "../../cli/tradeParser.js";
 import { formatError } from "../formatters/telegram.js";
-import { createHybridClient } from "../client.js";
+import { createHybridClient, createHybridClientForUser } from "../client.js";
+import type { HybridClient } from "../../sdk/index.js";
+import type { Address } from "viem";
 
 // Market name to ID mapping
 const PERP_NAMES: Record<string, bigint> = {
@@ -44,16 +49,16 @@ function escapeMarkdown(text: string): string {
 }
 
 /**
- * Close a position on a specific market
+ * Close a position on a specific market (single-user mode)
  */
-async function closePosition(market: Market): Promise<{
+async function closePositionSingleUser(market: Market): Promise<{
   success: boolean;
   txHash?: string;
   error?: string;
   noPosition?: boolean;
 }> {
   try {
-    console.log(`[CLOSE] Closing ${market} position...`);
+    console.log(`[CLOSE] Closing ${market} position (single-user)...`);
     const client = await createHybridClient({ withWalletClient: true });
 
     const config = loadEnvConfig();
@@ -68,47 +73,7 @@ async function closePosition(market: Market): Promise<{
       return { success: false, error: "No exchange account found" };
     }
 
-    // Get position
-    const { position, markPrice } = await client.getPosition(perpId, accountInfo.accountId);
-
-    if (position.lotLNS === 0n) {
-      return { success: true, noPosition: true };
-    }
-
-    // Get perpetual info for decimals
-    const perpInfo = await client.getPerpetualInfo(perpId);
-    const priceDecimals = BigInt(perpInfo.priceDecimals);
-    const lotDecimals = BigInt(perpInfo.lotDecimals);
-
-    // Determine close order type based on position type
-    // positionType: 0 = Long, 1 = Short
-    const isLong = Number(position.positionType) === 0;
-    const orderType = isLong ? OrderType.CloseLong : OrderType.CloseShort;
-
-    // Use mark price with slippage for IOC order
-    const currentPrice = pnsToPrice(markPrice, priceDecimals);
-    const slippagePrice = isLong ? currentPrice * 0.99 : currentPrice * 1.01;
-
-    const orderDesc: OrderDesc = {
-      orderDescId: 0n,
-      perpId,
-      orderType,
-      orderId: 0n,
-      pricePNS: priceToPNS(slippagePrice, priceDecimals),
-      lotLNS: position.lotLNS,
-      expiryBlock: 0n,
-      postOnly: false,
-      fillOrKill: false,
-      immediateOrCancel: true, // Market order
-      maxMatches: 0n,
-      leverageHdths: 100n,
-      lastExecutionBlock: 0n,
-      amountCNS: 0n,
-    };
-
-    const txHash = await client.execOrder(orderDesc);
-    console.log(`[CLOSE] Position closed: ${txHash}`);
-    return { success: true, txHash };
+    return await closePositionForAccount(client, perpId, accountInfo.accountId);
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : "Unknown error";
     console.error(`[CLOSE] Error closing position: ${errorMsg}`);
@@ -117,13 +82,108 @@ async function closePosition(market: Market): Promise<{
 }
 
 /**
+ * Close a position on a specific market (multi-user mode)
+ */
+async function closePositionMultiUser(
+  user: User,
+  market: Market
+): Promise<{
+  success: boolean;
+  txHash?: string;
+  error?: string;
+  noPosition?: boolean;
+}> {
+  try {
+    console.log(`[CLOSE] Closing ${market} position for user ${user.telegramId}...`);
+    const client = await createHybridClientForUser(user);
+
+    const perpId = PERP_NAMES[market];
+
+    // Get account by delegated account address
+    const accountInfo = await client.getAccountByAddress(user.delegatedAccount as Address);
+    if (accountInfo.accountId === 0n) {
+      return { success: false, error: "No exchange account found for your DelegatedAccount" };
+    }
+
+    return await closePositionForAccount(client, perpId, accountInfo.accountId);
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Unknown error";
+    console.error(`[CLOSE] Error closing position: ${errorMsg}`);
+    return { success: false, error: errorMsg };
+  }
+}
+
+/**
+ * Core logic to close a position given a client and account
+ */
+async function closePositionForAccount(
+  client: HybridClient,
+  perpId: bigint,
+  accountId: bigint
+): Promise<{
+  success: boolean;
+  txHash?: string;
+  error?: string;
+  noPosition?: boolean;
+}> {
+  // Get position
+  const { position, markPrice } = await client.getPosition(perpId, accountId);
+
+  if (position.lotLNS === 0n) {
+    return { success: true, noPosition: true };
+  }
+
+  // Get perpetual info for decimals
+  const perpInfo = await client.getPerpetualInfo(perpId);
+  const priceDecimals = BigInt(perpInfo.priceDecimals);
+
+  // Determine close order type based on position type
+  // positionType: 0 = Long, 1 = Short
+  const isLong = Number(position.positionType) === 0;
+  const orderType = isLong ? OrderType.CloseLong : OrderType.CloseShort;
+
+  // Use mark price with slippage for IOC order
+  const currentPrice = pnsToPrice(markPrice, priceDecimals);
+  const slippagePrice = isLong ? currentPrice * 0.99 : currentPrice * 1.01;
+
+  const orderDesc: OrderDesc = {
+    orderDescId: 0n,
+    perpId,
+    orderType,
+    orderId: 0n,
+    pricePNS: priceToPNS(slippagePrice, priceDecimals),
+    lotLNS: position.lotLNS,
+    expiryBlock: 0n,
+    postOnly: false,
+    fillOrKill: false,
+    immediateOrCancel: true, // Market order
+    maxMatches: 0n,
+    leverageHdths: 100n,
+    lastExecutionBlock: 0n,
+    amountCNS: 0n,
+  };
+
+  const txHash = await client.execOrder(orderDesc);
+  console.log(`[CLOSE] Position closed: ${txHash}`);
+  return { success: true, txHash };
+}
+
+/**
  * Handle close position request
+ * Supports both single-user and multi-user modes
  */
 export async function handleClosePosition(ctx: BotContext, market: Market): Promise<void> {
   try {
     await ctx.reply(`Closing ${market.toUpperCase()} position...`);
 
-    const result = await closePosition(market);
+    let result;
+    if (ctx.user?.delegatedAccount) {
+      // Multi-user mode
+      result = await closePositionMultiUser(ctx.user, market);
+    } else {
+      // Single-user mode
+      result = await closePositionSingleUser(market);
+    }
 
     if (result.noPosition) {
       await ctx.reply(`No ${market.toUpperCase()} position to close\\.`, { parse_mode: "MarkdownV2" });
@@ -142,9 +202,9 @@ export async function handleClosePosition(ctx: BotContext, market: Market): Prom
 }
 
 /**
- * Close all positions and cancel all orders
+ * Close all positions and cancel all orders (single-user mode)
  */
-async function closeAll(specificMarket?: Market): Promise<{
+async function closeAllSingleUser(specificMarket?: Market): Promise<{
   ordersCancelled: number;
   positionsClosed: number;
   errors: string[];
@@ -154,7 +214,7 @@ async function closeAll(specificMarket?: Market): Promise<{
 
   const owner = OwnerWallet.fromPrivateKey(config.ownerPrivateKey, config.chain);
 
-  console.log(`[CLOSE] Closing all ${specificMarket || "positions"}...`);
+  console.log(`[CLOSE] Closing all ${specificMarket || "positions"} (single-user)...`);
   const client = await createHybridClient({ withWalletClient: true });
 
   // Get account
@@ -163,6 +223,44 @@ async function closeAll(specificMarket?: Market): Promise<{
     return { ordersCancelled: 0, positionsClosed: 0, errors: ["No exchange account found"] };
   }
 
+  return await closeAllForAccount(client, accountInfo.accountId, specificMarket);
+}
+
+/**
+ * Close all positions and cancel all orders (multi-user mode)
+ */
+async function closeAllMultiUser(
+  user: User,
+  specificMarket?: Market
+): Promise<{
+  ordersCancelled: number;
+  positionsClosed: number;
+  errors: string[];
+}> {
+  console.log(`[CLOSE] Closing all ${specificMarket || "positions"} for user ${user.telegramId}...`);
+  const client = await createHybridClientForUser(user);
+
+  // Get account by delegated account address
+  const accountInfo = await client.getAccountByAddress(user.delegatedAccount as Address);
+  if (accountInfo.accountId === 0n) {
+    return { ordersCancelled: 0, positionsClosed: 0, errors: ["No exchange account found for your DelegatedAccount"] };
+  }
+
+  return await closeAllForAccount(client, accountInfo.accountId, specificMarket);
+}
+
+/**
+ * Core logic to close all positions and cancel orders for an account
+ */
+async function closeAllForAccount(
+  client: HybridClient,
+  accountId: bigint,
+  specificMarket?: Market
+): Promise<{
+  ordersCancelled: number;
+  positionsClosed: number;
+  errors: string[];
+}> {
   const errors: string[] = [];
   let ordersCancelled = 0;
   let positionsClosed = 0;
@@ -177,7 +275,7 @@ async function closeAll(specificMarket?: Market): Promise<{
 
     try {
       // Cancel all open orders for this market
-      const orders = await client.getOpenOrders(perpId, accountInfo.accountId);
+      const orders = await client.getOpenOrders(perpId, accountId);
       console.log(`[CLOSE] Found ${orders.length} open orders for ${perpName}`);
 
       for (const order of orders) {
@@ -209,7 +307,7 @@ async function closeAll(specificMarket?: Market): Promise<{
       }
 
       // Close position if exists
-      const { position, markPrice } = await client.getPosition(perpId, accountInfo.accountId);
+      const { position, markPrice } = await client.getPosition(perpId, accountId);
 
       if (position.lotLNS > 0n) {
         try {
@@ -239,7 +337,8 @@ async function closeAll(specificMarket?: Market): Promise<{
             amountCNS: 0n,
           };
 
-          await client.execOrder(closeDesc);
+          const txHash = await client.execOrder(closeDesc);
+          console.log(`[CLOSE] Position ${perpName} closed: ${txHash}`);
           positionsClosed++;
         } catch (e: any) {
           errors.push(`Failed to close ${perpName} position: ${e.message}`);
@@ -255,13 +354,21 @@ async function closeAll(specificMarket?: Market): Promise<{
 
 /**
  * Handle close all request
+ * Supports both single-user and multi-user modes
  */
 export async function handleCloseAll(ctx: BotContext, market?: Market): Promise<void> {
   try {
     const scope = market ? `${market.toUpperCase()}` : "all markets";
     await ctx.reply(`Closing everything on ${scope}...`);
 
-    const result = await closeAll(market);
+    let result;
+    if (ctx.user?.delegatedAccount) {
+      // Multi-user mode
+      result = await closeAllMultiUser(ctx.user, market);
+    } else {
+      // Single-user mode
+      result = await closeAllSingleUser(market);
+    }
 
     const lines: string[] = [];
     lines.push("*Close All Complete*");

@@ -10,7 +10,9 @@ import {
   Exchange,
   HybridClient,
   PERPETUALS,
+  ALL_PERP_IDS,
   priceToPNS,
+  pnsToPrice,
   lotToLNS,
   leverageToHdths,
 } from "../sdk/index.js";
@@ -23,6 +25,14 @@ const PERP_NAMES: Record<string, bigint> = {
   sol: PERPETUALS.SOL,
   mon: PERPETUALS.MON,
   zec: PERPETUALS.ZEC,
+};
+
+const PERP_IDS_TO_NAMES: Record<string, string> = {
+  "16": "BTC",
+  "32": "ETH",
+  "48": "SOL",
+  "64": "MON",
+  "256": "ZEC",
 };
 
 function resolvePerpId(perp: string): bigint {
@@ -301,5 +311,151 @@ export function registerTradeCommand(program: Command): void {
       }
 
       console.log(`\nCancelled ${cancelled}/${orders.length} orders.`);
+    });
+
+  // Close all positions and cancel all orders
+  trade
+    .command("close-all")
+    .description("Close all positions and cancel all orders")
+    .option("--perp <name>", "Specific market only (btc, eth, sol, mon, zec)")
+    .action(async (options) => {
+      const config = loadEnvConfig();
+      validateOwnerConfig(config);
+
+      const owner = OwnerWallet.fromPrivateKey(
+        config.ownerPrivateKey,
+        config.chain
+      );
+
+      const exchange = new Exchange(
+        config.chain.exchangeAddress,
+        owner.publicClient,
+        owner.walletClient
+      );
+      const client = new HybridClient({ exchange });
+
+      const accountInfo = await client.getAccountByAddress(owner.address);
+      const accountId = accountInfo.accountId;
+
+      if (accountId === 0n) {
+        console.log("No exchange account found.");
+        return;
+      }
+
+      // Determine which markets to process
+      const marketsToProcess = options.perp
+        ? [resolvePerpId(options.perp)]
+        : ALL_PERP_IDS;
+
+      const scope = options.perp ? options.perp.toUpperCase() : "all markets";
+      console.log(`Closing everything on ${scope}...`);
+      console.log(`Account ID: ${accountId}`);
+
+      let ordersCancelled = 0;
+      let positionsClosed = 0;
+      const errors: string[] = [];
+
+      for (const perpId of marketsToProcess) {
+        const perpName = PERP_IDS_TO_NAMES[perpId.toString()] || perpId.toString();
+
+        try {
+          // Cancel all open orders for this market
+          const orders = await client.getOpenOrders(perpId, accountId);
+
+          if (orders.length > 0) {
+            console.log(`\n[${perpName}] Found ${orders.length} open order(s)`);
+
+            for (const order of orders) {
+              try {
+                console.log(`  Cancelling order ${order.orderId}...`);
+                const cancelDesc: OrderDesc = {
+                  orderDescId: 0n,
+                  perpId,
+                  orderType: OrderType.Cancel,
+                  orderId: order.orderId,
+                  pricePNS: 0n,
+                  lotLNS: 0n,
+                  expiryBlock: 0n,
+                  postOnly: false,
+                  fillOrKill: false,
+                  immediateOrCancel: false,
+                  maxMatches: 0n,
+                  leverageHdths: 0n,
+                  lastExecutionBlock: 0n,
+                  amountCNS: 0n,
+                };
+                const txHash = await client.execOrder(cancelDesc);
+                console.log(`    Tx: ${txHash}`);
+                ordersCancelled++;
+              } catch (e: any) {
+                const msg = `Failed to cancel ${perpName} order #${order.orderId}: ${e.shortMessage || e.message}`;
+                console.log(`    ${msg}`);
+                errors.push(msg);
+              }
+            }
+          }
+
+          // Close position if exists
+          const { position, markPrice } = await client.getPosition(perpId, accountId);
+
+          if (position.lotLNS > 0n) {
+            try {
+              const perpInfo = await client.getPerpetualInfo(perpId);
+              const priceDecimals = BigInt(perpInfo.priceDecimals);
+
+              const isLong = Number(position.positionType) === 0;
+              const orderType = isLong ? OrderType.CloseLong : OrderType.CloseShort;
+              const side = isLong ? "LONG" : "SHORT";
+
+              const currentPrice = pnsToPrice(markPrice, priceDecimals);
+              const slippagePrice = isLong ? currentPrice * 0.99 : currentPrice * 1.01;
+
+              console.log(`\n[${perpName}] Closing ${side} position...`);
+
+              const closeDesc: OrderDesc = {
+                orderDescId: 0n,
+                perpId,
+                orderType,
+                orderId: 0n,
+                pricePNS: priceToPNS(slippagePrice, priceDecimals),
+                lotLNS: position.lotLNS,
+                expiryBlock: 0n,
+                postOnly: false,
+                fillOrKill: false,
+                immediateOrCancel: true, // Market order
+                maxMatches: 0n,
+                leverageHdths: 100n,
+                lastExecutionBlock: 0n,
+                amountCNS: 0n,
+              };
+
+              const txHash = await client.execOrder(closeDesc);
+              console.log(`    Tx: ${txHash}`);
+              positionsClosed++;
+            } catch (e: any) {
+              const msg = `Failed to close ${perpName} position: ${e.shortMessage || e.message}`;
+              console.log(`    ${msg}`);
+              errors.push(msg);
+            }
+          }
+        } catch (e: any) {
+          const msg = `Failed to process ${perpName}: ${e.shortMessage || e.message}`;
+          console.log(msg);
+          errors.push(msg);
+        }
+      }
+
+      console.log("\n" + "=".repeat(50));
+      console.log("Close All Complete");
+      console.log("=".repeat(50));
+      console.log(`Orders cancelled: ${ordersCancelled}`);
+      console.log(`Positions closed: ${positionsClosed}`);
+
+      if (errors.length > 0) {
+        console.log(`\nErrors (${errors.length}):`);
+        for (const err of errors) {
+          console.log(`  - ${err}`);
+        }
+      }
     });
 }

@@ -67,7 +67,7 @@ Convert natural language into PerplBot CLI commands.
 2. Determine command type (query, account management, or trade)
 3. For trades only: Use AskUserQuestion to confirm before executing
 4. Execute the appropriate CLI command
-5. Summarize the result in 2 sentences
+5. Summarize the result
 
 ## Trade Parameter Mapping
 
@@ -121,7 +121,7 @@ Options: "Execute trade" or "Cancel"
 
 ## Response Format
 
-After execution, summarize in 2 sentences maximum.
+Summarize the result clearly.
 
 ## Parser Module
 

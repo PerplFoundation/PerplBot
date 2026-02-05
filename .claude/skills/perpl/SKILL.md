@@ -2,7 +2,6 @@
 name: perpl
 description: Trade on Perpl DEX - view markets, manage positions, execute trades
 model: haiku
-max-tokens: 100
 allowed-tools: Bash(npm run dev:*)
 argument-hint: <command> [args...]
 ---
@@ -10,8 +9,6 @@ argument-hint: <command> [args...]
 # Perpl Trading Skill
 
 Execute PerplBot CLI commands directly.
-
-**Response format**: Summarize results in 2 sentences maximum. Be concise.
 
 ## Usage
 

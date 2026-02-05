@@ -59,9 +59,10 @@ export function registerTradeCommand(program: Command): void {
     .requiredOption("--perp <name>", "Perpetual to trade (btc, eth, sol, mon, zec)")
     .requiredOption("--side <side>", "Position side (long or short)")
     .requiredOption("--size <amount>", "Position size")
-    .requiredOption("--price <price>", "Limit price")
+    .requiredOption("--price <price>", "Limit price or 'market' for market order")
     .option("--leverage <multiplier>", "Leverage multiplier", "1")
     .option("--ioc", "Immediate-or-cancel order (market order)")
+    .option("--slippage <percent>", "Slippage tolerance for market orders", "1")
     .action(async (options) => {
       const config = loadEnvConfig();
       validateOwnerConfig(config);
@@ -81,19 +82,47 @@ export function registerTradeCommand(program: Command): void {
       const perpId = resolvePerpId(options.perp);
       const side = options.side.toLowerCase();
       const size = parseFloat(options.size);
-      const price = parseFloat(options.price);
       const leverage = parseFloat(options.leverage);
+      const slippage = parseFloat(options.slippage) / 100; // Convert to decimal
 
       // Get perpetual info for decimals
       const perpInfo = await client.getPerpetualInfo(perpId);
       const priceDecimals = BigInt(perpInfo.priceDecimals);
       const lotDecimals = BigInt(perpInfo.lotDecimals);
 
-      console.log(`Opening ${side} position...`);
-      console.log(`  Perpetual ID: ${perpId}`);
-      console.log(`  Size: ${size}`);
-      console.log(`  Price: ${price}`);
-      console.log(`  Leverage: ${leverage}x`);
+      // Handle market price
+      const isMarketOrder = options.price.toLowerCase() === "market";
+      let price: number;
+      let isIoc = options.ioc ?? false;
+
+      if (isMarketOrder) {
+        // Fetch current mark price
+        const accountInfo = await client.getAccountByAddress(owner.address);
+        const { markPrice } = await client.getPosition(perpId, accountInfo.accountId);
+        const currentPrice = pnsToPrice(markPrice, priceDecimals);
+
+        // Apply slippage based on side
+        if (side === "long") {
+          price = currentPrice * (1 + slippage); // Pay up to X% more
+        } else {
+          price = currentPrice * (1 - slippage); // Receive at least X% less
+        }
+        isIoc = true; // Market orders are always IOC
+        console.log(`Opening ${side} MARKET position...`);
+        console.log(`  Perpetual ID: ${perpId}`);
+        console.log(`  Size: ${size}`);
+        console.log(`  Mark Price: ${currentPrice.toFixed(2)}`);
+        console.log(`  Slippage: ${options.slippage}%`);
+        console.log(`  Max Price: ${price.toFixed(2)}`);
+        console.log(`  Leverage: ${leverage}x`);
+      } else {
+        price = parseFloat(options.price);
+        console.log(`Opening ${side} position...`);
+        console.log(`  Perpetual ID: ${perpId}`);
+        console.log(`  Size: ${size}`);
+        console.log(`  Price: ${price}`);
+        console.log(`  Leverage: ${leverage}x`);
+      }
 
       const orderType = side === "long" ? OrderType.OpenLong : OrderType.OpenShort;
 
@@ -107,7 +136,7 @@ export function registerTradeCommand(program: Command): void {
         expiryBlock: 0n,
         postOnly: false,
         fillOrKill: false,
-        immediateOrCancel: options.ioc ?? false,
+        immediateOrCancel: isIoc,
         maxMatches: 0n,
         leverageHdths: leverageToHdths(leverage),
         lastExecutionBlock: 0n,

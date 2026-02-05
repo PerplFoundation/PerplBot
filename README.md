@@ -154,8 +154,8 @@ npm run dev -- manage markets             # Prices and funding rates
 npm run dev -- manage withdraw --amount 100  # Withdraw (owner only)
 
 # Trading
-npm run dev -- trade open --perp btc --side long --size 0.1 --price 45000 --leverage 10
-npm run dev -- trade open --perp btc --side long --size 0.1 --price 46000 --leverage 10 --ioc  # Market order
+npm run dev -- trade open --perp btc --side long --size 0.1 --price 45000 --leverage 10  # Limit order
+npm run dev -- trade open --perp btc --side long --size 0.1 --price market --leverage 10 # Market order
 npm run dev -- trade cancel --perp btc --order-id 123
 npm run dev -- trade cancel-all --perp btc
 

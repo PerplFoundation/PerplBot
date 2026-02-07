@@ -15,6 +15,8 @@ import {
   pnsToPrice,
   lotToLNS,
   leverageToHdths,
+  simulateTrade,
+  printDryRunReport,
 } from "../sdk/index.js";
 import { OrderType, type OrderDesc } from "../sdk/contracts/Exchange.js";
 
@@ -63,6 +65,7 @@ export function registerTradeCommand(program: Command): void {
     .option("--leverage <multiplier>", "Leverage multiplier", "1")
     .option("--ioc", "Immediate-or-cancel order (market order)")
     .option("--slippage <percent>", "Slippage tolerance for market orders", "1")
+    .option("--dry-run", "Simulate trade on forked chain without sending")
     .action(async (options) => {
       const config = loadEnvConfig();
       validateOwnerConfig(config);
@@ -143,6 +146,19 @@ export function registerTradeCommand(program: Command): void {
         amountCNS: 0n,
       };
 
+      // Dry-run: simulate instead of sending
+      if (options.dryRun) {
+        const perpName = options.perp.toUpperCase();
+        try {
+          const dryResult = await simulateTrade(config, orderDesc);
+          printDryRunReport(dryResult, orderDesc, perpName, priceDecimals, lotDecimals);
+        } catch (error) {
+          console.error("Dry-run failed:", error);
+          process.exit(1);
+        }
+        return;
+      }
+
       try {
         const txHash = await client.execOrder(orderDesc);
         console.log(`\nTransaction submitted: ${txHash}`);
@@ -160,6 +176,7 @@ export function registerTradeCommand(program: Command): void {
     .requiredOption("--side <side>", "Position side to close (long or short)")
     .requiredOption("--size <amount>", "Size to close")
     .requiredOption("--price <price>", "Limit price")
+    .option("--dry-run", "Simulate trade on forked chain without sending")
     .action(async (options) => {
       const config = loadEnvConfig();
       validateOwnerConfig(config);
@@ -209,6 +226,19 @@ export function registerTradeCommand(program: Command): void {
         lastExecutionBlock: 0n,
         amountCNS: 0n,
       };
+
+      // Dry-run: simulate instead of sending
+      if (options.dryRun) {
+        const perpName = options.perp.toUpperCase();
+        try {
+          const dryResult = await simulateTrade(config, orderDesc);
+          printDryRunReport(dryResult, orderDesc, perpName, priceDecimals, lotDecimals);
+        } catch (error) {
+          console.error("Dry-run failed:", error);
+          process.exit(1);
+        }
+        return;
+      }
 
       try {
         const txHash = await client.execOrder(orderDesc);

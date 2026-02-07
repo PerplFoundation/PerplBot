@@ -27,6 +27,7 @@ PerplBot provides a TypeScript SDK and CLI for building trading bots on Perpl. I
 
 - **Wallet Management** — Cold/hot wallet separation, encrypted key storage (PBKDF2 + AES-256-GCM)
 - **Trading** — Market orders (IOC), limit orders, position management, order cancellation
+- **Dry-Run Simulation** — `--dry-run` flag simulates trades on an Anvil fork with visual report: ANSI colors, balance bar charts, mini orderbook, price scale diagram
 - **Portfolio Queries** — Markets, positions, PnL, funding rates, fees
 - **Strategies** — Grid trading, market making with position-based skew
 - **Interfaces** — CLI, TypeScript SDK, Telegram bot, Claude Code skills
@@ -158,6 +159,10 @@ npm run dev -- trade open --perp btc --side long --size 0.1 --price 45000 --leve
 npm run dev -- trade open --perp btc --side long --size 0.1 --price market --leverage 10 # Market order
 npm run dev -- trade cancel --perp btc --order-id 123
 npm run dev -- trade cancel-all --perp btc
+
+# Dry-Run Simulation (no real transaction)
+npm run dev -- trade open --perp btc --side long --size 0.1 --price market --leverage 10 --dry-run
+NO_COLOR=1 npm run dev -- trade open --perp btc --side long --size 0.1 --price market --leverage 10 --dry-run  # Plain text
 
 # Close Positions
 npm run dev -- trade close-all            # Close ALL positions + cancel ALL orders

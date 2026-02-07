@@ -18,5 +18,8 @@ export * from "./trading/index.js";
 // State management
 export * from "./state/index.js";
 
+// Simulation
+export * from "./simulation/index.js";
+
 // Configuration
 export * from "./config.js";

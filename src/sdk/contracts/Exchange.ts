@@ -115,6 +115,11 @@ export interface PerpetualInfo {
   synthPerpPricePNS: bigint;
   paused: boolean;
   basePricePNS: bigint;
+  maxBidPriceONS: bigint;
+  minBidPriceONS: bigint;
+  maxAskPriceONS: bigint;
+  minAskPriceONS: bigint;
+  numOrders: bigint;
 }
 
 /**
@@ -295,6 +300,11 @@ export class Exchange {
       synthPerpPricePNS: result.synthPerpPricePNS,
       paused: result.paused,
       basePricePNS: result.basePricePNS,
+      maxBidPriceONS: result.maxBidPriceONS,
+      minBidPriceONS: result.minBidPriceONS,
+      maxAskPriceONS: result.maxAskPriceONS,
+      minAskPriceONS: result.minAskPriceONS,
+      numOrders: result.numOrders,
     };
   }
 

@@ -17,7 +17,7 @@ npm run build
 # Run CLI in development
 npm run dev -- <command>
 
-# Run tests (332 tests)
+# Run tests (393 tests)
 npm test
 
 # Run tests in watch mode
@@ -82,6 +82,10 @@ PerplBot/
 │   │   │   ├── positions.ts    # Position management
 │   │   │   ├── portfolio.ts    # Portfolio queries
 │   │   │   └── strategies/     # Trading strategies
+│   │   ├── simulation/          # Dry-run simulation
+│   │   │   ├── anvil.ts         # Anvil fork management
+│   │   │   ├── dry-run.ts       # Fork simulation logic
+│   │   │   └── report.ts        # Terminal report with visualizations
 │   │   ├── state/              # State management
 │   │   │   └── exchange.ts     # Exchange state tracking
 │   │   ├── config.ts           # Environment config
@@ -96,6 +100,8 @@ PerplBot/
 │   ├── api/                    # API client tests
 │   │   ├── client.test.ts      # REST API client tests
 │   │   └── websocket.test.ts   # WebSocket client tests
+│   ├── simulation/             # Dry-run simulation tests
+│   │   └── dry-run.test.ts     # Report formatting & visualization tests
 │   ├── orders.test.ts          # Order construction tests
 │   ├── positions.test.ts       # Position calculation tests
 │   ├── keyManager.test.ts      # Key management tests
@@ -121,6 +127,11 @@ PerplBot/
 - Reduce position (partial close)
 - Add margin to position
 - Cancel orders
+- Dry-run simulation (`--dry-run`) with visual report:
+  - ANSI-colored output (chalk, respects `NO_COLOR`)
+  - Unicode balance bar charts (before/after comparison)
+  - Mini orderbook (ASK/BID spread, open interest)
+  - Price scale diagram (entry, mark, estimated liquidation)
 
 ### Account Management (Owner)
 - Deploy DelegatedAccount
@@ -340,7 +351,7 @@ The `/reviewer` skill performs comprehensive code review with a senior engineer 
 
 **Verification Gate:**
 - `npm run typecheck` passes
-- `npm test` passes (332 tests)
+- `npm test` passes (393 tests)
 - No P0 or P1 issues remain
 - "Would a staff engineer approve this?"
 

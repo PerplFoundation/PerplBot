@@ -1,16 +1,20 @@
 /**
- * Show command - Display orderbook and recent trades
+ * Show command - Display orderbook, recent trades, and liquidation analysis
  */
 
 import type { Command } from "commander";
 import { createPublicClient, http, parseAbiItem } from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import {
   loadEnvConfig,
+  validateOwnerConfig,
   Exchange,
   HybridClient,
   PERPETUALS,
   pnsToPrice,
   lnsToLot,
+  simulateLiquidation,
+  printLiquidationReport,
 } from "../sdk/index.js";
 
 // Market name to ID mapping
@@ -311,5 +315,61 @@ export function registerShowCommand(program: Command): void {
       }
 
       console.log(`\nScanned ${blocksToScan} blocks, found ${trades.length} trades`);
+    });
+
+  // Show liquidation analysis
+  show
+    .command("liquidation")
+    .alias("liq")
+    .description("Simulate liquidation scenarios for your position")
+    .requiredOption("--perp <name>", "Perpetual (btc, eth, sol, mon, zec)")
+    .option("--range <pct>", "Price range to sweep (%)", "30")
+    .option("--funding <hours>", "Funding projection hours", "24")
+    .action(async (options) => {
+      const config = loadEnvConfig();
+      validateOwnerConfig(config);
+
+      const publicClient = createPublicClient({
+        chain: config.chain.chain,
+        transport: http(config.chain.rpcUrl),
+      });
+
+      const perpId = resolvePerpId(options.perp);
+      const perpName = PERP_IDS_TO_NAMES[perpId.toString()] || options.perp.toUpperCase();
+      const exchangeAddr = config.chain.exchangeAddress;
+      const exchange = new Exchange(exchangeAddr, publicClient);
+
+      // Get account
+      const account = privateKeyToAccount(config.ownerPrivateKey!);
+      const accountInfo = await exchange.getAccountByAddress(account.address);
+      if (accountInfo.accountId === 0n) {
+        console.error("No exchange account found for this wallet.");
+        process.exit(1);
+      }
+
+      // Get position
+      const { position } = await exchange.getPosition(perpId, accountInfo.accountId);
+      if (position.lotLNS === 0n) {
+        console.error(`No open ${perpName} position.`);
+        process.exit(1);
+      }
+
+      // Get perp info
+      const perpInfo = await exchange.getPerpetualInfo(perpId);
+
+      // Run simulation
+      const result = simulateLiquidation(
+        perpId,
+        position,
+        perpInfo,
+        perpName,
+        {
+          priceRangePct: parseInt(options.range, 10),
+          fundingHours: parseInt(options.funding, 10),
+        },
+      );
+
+      // Print report
+      printLiquidationReport(result);
     });
 }

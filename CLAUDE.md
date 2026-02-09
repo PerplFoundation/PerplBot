@@ -17,7 +17,7 @@ npm run build
 # Run CLI in development
 npm run dev -- <command>
 
-# Run tests (419 tests)
+# Run tests (485+ tests)
 npm test
 
 # Run tests in watch mode
@@ -87,7 +87,9 @@ PerplBot/
 │   │   │   ├── dry-run.ts       # Fork simulation logic
 │   │   │   ├── report.ts        # Terminal report with visualizations
 │   │   │   ├── forensics.ts     # Transaction forensics analysis
-│   │   │   └── forensics-report.ts # Forensics terminal report
+│   │   │   ├── forensics-report.ts # Forensics terminal report
+│   │   │   ├── liquidation.ts   # Liquidation price simulator (pure math)
+│   │   │   └── liquidation-report.ts # Liquidation terminal report
 │   │   ├── state/              # State management
 │   │   │   └── exchange.ts     # Exchange state tracking
 │   │   ├── config.ts           # Environment config
@@ -104,7 +106,8 @@ PerplBot/
 │   │   └── websocket.test.ts   # WebSocket client tests
 │   ├── simulation/             # Dry-run simulation tests
 │   │   ├── dry-run.test.ts     # Report formatting & visualization tests
-│   │   └── forensics.test.ts  # Forensics unit tests
+│   │   ├── forensics.test.ts  # Forensics unit tests
+│   │   └── liquidation.test.ts # Liquidation simulator tests
 │   ├── orders.test.ts          # Order construction tests
 │   ├── positions.test.ts       # Position calculation tests
 │   ├── keyManager.test.ts      # Key management tests
@@ -148,6 +151,16 @@ PerplBot/
 - Get account summary
 - Get funding info
 - Get trading fees
+
+### Analysis (`show` commands)
+- `show book --perp <name>` — Reconstruct orderbook from recent on-chain events
+- `show trades --perp <name>` — Show recent trades from on-chain fill events
+- `show liquidation --perp <name>` — Liquidation simulator (pure math, no fork):
+  - Price sweep with equity/margin bars across configurable range
+  - Exact liquidation price calculation (long & short)
+  - Funding rate projection showing liq price drift over time
+  - Distance-to-liquidation in % and USD
+  - Open interest context
 
 ## Key Concepts
 
@@ -355,7 +368,7 @@ The `/reviewer` skill performs comprehensive code review with a senior engineer 
 
 **Verification Gate:**
 - `npm run typecheck` passes
-- `npm test` passes (419 tests)
+- `npm test` passes (485+ tests)
 - No P0 or P1 issues remain
 - "Would a staff engineer approve this?"
 

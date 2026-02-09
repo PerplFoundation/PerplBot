@@ -79,7 +79,7 @@ export interface DryRunResult {
 /**
  * Take a snapshot of account state from the exchange contract
  */
-async function snapshotAccount(
+export async function snapshotAccount(
   publicClient: PublicClient,
   exchangeAddress: Address,
   accountAddress: Address,
@@ -134,7 +134,7 @@ async function snapshotAccount(
  * Try to decode logs against the ExchangeAbi.
  * Silently skips logs that don't match known events.
  */
-function decodeLogs(logs: Log[]): DecodedEvent[] {
+export function decodeLogs(logs: Log[]): DecodedEvent[] {
   const decoded: DecodedEvent[] = [];
   for (const log of logs) {
     try {

@@ -6,3 +6,5 @@
 export * from "./anvil.js";
 export * from "./dry-run.js";
 export * from "./report.js";
+export * from "./forensics.js";
+export * from "./forensics-report.js";

@@ -30,17 +30,23 @@ export async function isAnvilInstalled(): Promise<boolean> {
  */
 export async function startAnvilFork(
   forkUrl: string,
-  opts?: { timeout?: number }
+  opts?: { timeout?: number; blockNumber?: bigint }
 ): Promise<AnvilInstance> {
   const timeout = opts?.timeout ?? 30_000;
 
-  const proc = spawn("anvil", [
+  const args = [
     "--fork-url", forkUrl,
     "--port", "0",
     "--no-mining",           // mine on-demand (when tx sent)
     "--auto-impersonate",    // allow impersonation without explicit call
     "--steps-tracing",       // enable trace steps for debugging
-  ], {
+  ];
+
+  if (opts?.blockNumber !== undefined) {
+    args.push("--fork-block-number", opts.blockNumber.toString());
+  }
+
+  const proc = spawn("anvil", args, {
     stdio: ["ignore", "pipe", "pipe"],
   });
 

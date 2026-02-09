@@ -561,6 +561,62 @@ export const ExchangeAbi = [
     outputs: [{ name: "", type: "uint256" }],
     stateMutability: "view",
   },
+  // Trading events
+  {
+    type: "event",
+    name: "OrderRequest",
+    inputs: [
+      { name: "perpId", type: "uint256", indexed: false },
+      { name: "accountId", type: "uint256", indexed: false },
+      { name: "orderDescId", type: "uint256", indexed: false },
+      { name: "orderId", type: "uint256", indexed: false },
+      { name: "orderType", type: "uint8", indexed: false },
+      { name: "pricePNS", type: "uint256", indexed: false },
+      { name: "lotLNS", type: "uint256", indexed: false },
+      { name: "expiryBlock", type: "uint256", indexed: false },
+      { name: "postOnly", type: "bool", indexed: false },
+      { name: "fillOrKill", type: "bool", indexed: false },
+      { name: "immediateOrCancel", type: "bool", indexed: false },
+      { name: "maxMatches", type: "uint256", indexed: false },
+      { name: "leverageHdths", type: "uint256", indexed: false },
+      { name: "gasLeft", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "OrderPlaced",
+    inputs: [
+      { name: "orderId", type: "uint256", indexed: false },
+      { name: "lotLNS", type: "uint256", indexed: false },
+      { name: "lockedBalanceCNS", type: "uint256", indexed: false },
+      { name: "amountCNS", type: "int256", indexed: false },
+      { name: "balanceCNS", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "MakerOrderFilled",
+    inputs: [
+      { name: "perpId", type: "uint256", indexed: false },
+      { name: "accountId", type: "uint256", indexed: false },
+      { name: "orderId", type: "uint256", indexed: false },
+      { name: "pricePNS", type: "uint256", indexed: false },
+      { name: "lotLNS", type: "uint256", indexed: false },
+      { name: "feeCNS", type: "uint256", indexed: false },
+      { name: "lockedBalanceCNS", type: "uint256", indexed: false },
+      { name: "amountCNS", type: "int256", indexed: false },
+      { name: "balanceCNS", type: "uint256", indexed: false },
+    ],
+  },
+  {
+    type: "event",
+    name: "OrderCancelled",
+    inputs: [
+      { name: "lockedBalanceCNS", type: "uint256", indexed: false },
+      { name: "amountCNS", type: "int256", indexed: false },
+      { name: "balanceCNS", type: "uint256", indexed: false },
+    ],
+  },
   // Order query functions
   {
     type: "function",

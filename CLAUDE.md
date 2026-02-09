@@ -17,7 +17,7 @@ npm run build
 # Run CLI in development
 npm run dev -- <command>
 
-# Run tests (393 tests)
+# Run tests (419 tests)
 npm test
 
 # Run tests in watch mode
@@ -82,10 +82,12 @@ PerplBot/
 │   │   │   ├── positions.ts    # Position management
 │   │   │   ├── portfolio.ts    # Portfolio queries
 │   │   │   └── strategies/     # Trading strategies
-│   │   ├── simulation/          # Dry-run simulation
+│   │   ├── simulation/          # Dry-run simulation & forensics
 │   │   │   ├── anvil.ts         # Anvil fork management
 │   │   │   ├── dry-run.ts       # Fork simulation logic
-│   │   │   └── report.ts        # Terminal report with visualizations
+│   │   │   ├── report.ts        # Terminal report with visualizations
+│   │   │   ├── forensics.ts     # Transaction forensics analysis
+│   │   │   └── forensics-report.ts # Forensics terminal report
 │   │   ├── state/              # State management
 │   │   │   └── exchange.ts     # Exchange state tracking
 │   │   ├── config.ts           # Environment config
@@ -101,7 +103,8 @@ PerplBot/
 │   │   ├── client.test.ts      # REST API client tests
 │   │   └── websocket.test.ts   # WebSocket client tests
 │   ├── simulation/             # Dry-run simulation tests
-│   │   └── dry-run.test.ts     # Report formatting & visualization tests
+│   │   ├── dry-run.test.ts     # Report formatting & visualization tests
+│   │   └── forensics.test.ts  # Forensics unit tests
 │   ├── orders.test.ts          # Order construction tests
 │   ├── positions.test.ts       # Position calculation tests
 │   ├── keyManager.test.ts      # Key management tests
@@ -127,6 +130,7 @@ PerplBot/
 - Reduce position (partial close)
 - Add margin to position
 - Cancel orders
+- Transaction forensics (`debug <txhash>`): replay any tx on fork, decode events, explain what happened
 - Dry-run simulation (`--dry-run`) with visual report:
   - ANSI-colored output (chalk, respects `NO_COLOR`)
   - Unicode balance bar charts (before/after comparison)
@@ -351,7 +355,7 @@ The `/reviewer` skill performs comprehensive code review with a senior engineer 
 
 **Verification Gate:**
 - `npm run typecheck` passes
-- `npm test` passes (393 tests)
+- `npm test` passes (419 tests)
 - No P0 or P1 issues remain
 - "Would a staff engineer approve this?"
 

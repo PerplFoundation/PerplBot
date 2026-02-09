@@ -168,6 +168,11 @@ NO_COLOR=1 npm run dev -- trade open --perp btc --side long --size 0.1 --price m
 npm run dev -- trade close-all            # Close ALL positions + cancel ALL orders
 npm run dev -- trade close-all --perp btc # Close BTC only
 
+# Transaction Forensics (requires Anvil)
+npm run dev -- debug <txhash>             # Replay tx on fork, decode events, explain what happened
+npm run dev -- debug <txhash> --json      # Output raw JSON result
+npm run dev -- debug <txhash> --rpc <url> # Custom RPC URL
+
 # Deployment
 npm run dev -- deploy --implementation <addr> --operator <hot-wallet> --deposit 100
 ```

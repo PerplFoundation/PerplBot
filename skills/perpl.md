@@ -50,6 +50,24 @@ Execute PerplBot CLI commands directly:
 /perpl trade open --perp btc --side long --size 0.001 --price 75000 --leverage 2
 ```
 
+### /perpl - Analysis & Simulation Commands
+```
+/perpl show book --perp btc                    # On-chain orderbook
+/perpl show trades --perp btc                  # Recent trades
+/perpl show liquidation --perp btc             # Liquidation price simulator (pure math)
+/perpl show liquidation --perp btc --fork      # Fork-verified liquidation (Anvil)
+/perpl show liquidation --perp btc --fork --range 50  # Custom sweep range
+
+/perpl debug <txhash>                          # Replay & decode any transaction
+/perpl debug <txhash> --json                   # Raw JSON output
+
+/perpl simulate strategy --strategy grid --perp btc --levels 5 --spacing 100 --size 0.001 --leverage 2
+/perpl simulate strategy --strategy mm --perp btc --size 0.001 --spread 0.1 --leverage 2
+
+# Dry-run any trade (no real transaction)
+/perpl trade open --perp btc --side long --size 0.001 --price market --leverage 2 --dry-run
+```
+
 ### /perpl-type - Natural Language Interface
 Use plain English for any Perpl command:
 
@@ -124,6 +142,29 @@ npx perpl manage withdraw --amount 100
 
 # Deposit collateral
 npx perpl manage deposit --amount 500
+```
+
+### Analysis & Simulation (requires Anvil for fork features)
+```bash
+# Orderbook and trades
+npx perpl show book --perp btc
+npx perpl show trades --perp btc --limit 20
+
+# Liquidation simulator
+npx perpl show liquidation --perp btc             # Pure math
+npx perpl show liquidation --perp btc --fork       # Fork-verified (Anvil)
+npx perpl show liquidation --perp btc --fork --range 50  # Custom range
+
+# Transaction forensics
+npx perpl debug <txhash>                           # Replay, decode events, explain
+npx perpl debug <txhash> --json
+
+# Strategy dry-run
+npx perpl simulate strategy --strategy grid --perp btc --levels 5 --spacing 100 --size 0.001 --leverage 2
+npx perpl simulate strategy --strategy mm --perp btc --size 0.001 --spread 0.1 --leverage 2
+
+# Trade dry-run
+npx perpl trade open --perp btc --side long --size 0.001 --price market --leverage 2 --dry-run
 ```
 
 ## SDK Usage Examples

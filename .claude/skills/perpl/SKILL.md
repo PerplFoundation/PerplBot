@@ -43,8 +43,15 @@ trade cancel-all --perp <market>
 
 show book --perp <market>   - Show order book
 show trades --perp <market> - Show recent trades
+show liquidation --perp <market>        - Liquidation price simulator
+show liquidation --perp <market> --fork - Fork-verified liquidation (Anvil)
 
-Options: --ioc (market order), --post-only (maker only)
+debug <txhash>             - Replay & decode transaction (Anvil)
+
+simulate strategy --strategy grid --perp <market> --levels 5 --spacing 100 --size 0.001 --leverage 2
+simulate strategy --strategy mm --perp <market> --size 0.001 --spread 0.1 --leverage 2
+
+Options: --ioc (market order), --post-only (maker only), --dry-run (simulate)
 Markets: btc, eth, sol, mon, zec
 
 Natural Language: Use /perpl-type for plain English commands
@@ -70,10 +77,23 @@ Natural Language: Use /perpl-type for plain English commands
 ### show
 - `show book --perp <market>` - Show order book for a market
 - `show trades --perp <market>` - Show recent trades for a market
+- `show liquidation --perp <market>` - Liquidation price simulator (pure math)
+- `show liquidation --perp <market> --fork` - Fork-verified liquidation (requires Anvil)
+- `show liquidation --perp <market> --range <pct>` - Custom sweep range (default 30%)
+
+### debug (requires Anvil)
+- `debug <txhash>` - Replay transaction on fork, decode events, explain what happened
+- `debug <txhash> --json` - Output raw JSON result
+
+### simulate (requires Anvil)
+- `simulate strategy --strategy grid --perp <market> --levels N --spacing N --size N --leverage N`
+- `simulate strategy --strategy mm --perp <market> --size N --spread N --leverage N`
+- `simulate strategy --strategy grid --perp <market> --spacing N --size N --json`
 
 ### Options
 - `--ioc` - Immediate-or-cancel (market order)
 - `--post-only` - Maker only
+- `--dry-run` - Simulate trade on Anvil fork (no real transaction)
 
 ## Markets
 - btc, eth, sol, mon, zec
@@ -88,4 +108,8 @@ Natural Language: Use /perpl-type for plain English commands
 /perpl trade cancel-all --perp btc
 /perpl show book --perp btc
 /perpl show trades --perp eth --limit 10
+/perpl show liquidation --perp btc
+/perpl show liquidation --perp btc --fork --range 50
+/perpl debug 0x1234...abcd
+/perpl simulate strategy --strategy grid --perp btc --levels 5 --spacing 100 --size 0.001 --leverage 2
 ```

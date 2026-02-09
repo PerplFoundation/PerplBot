@@ -28,6 +28,10 @@ PerplBot provides a TypeScript SDK and CLI for building trading bots on Perpl. I
 - **Wallet Management** — Cold/hot wallet separation, encrypted key storage (PBKDF2 + AES-256-GCM)
 - **Trading** — Market orders (IOC), limit orders, position management, order cancellation
 - **Dry-Run Simulation** — `--dry-run` flag simulates trades on an Anvil fork with visual report: ANSI colors, balance bar charts, mini orderbook, price scale diagram
+- **Transaction Forensics** — Replay any transaction on a fork, decode events, explain what happened
+- **Strategy Simulation** — Run grid/MM strategies against real on-chain liquidity via fork
+- **Liquidation Simulator** — Pure-math sweep + fork-verified liquidation boundary with binary search
+- **On-Chain Orderbook** — Reconstruct orderbook and view recent trades from on-chain events
 - **Portfolio Queries** — Markets, positions, PnL, funding rates, fees
 - **Strategies** — Grid trading, market making with position-based skew
 - **Interfaces** — CLI, TypeScript SDK, Telegram bot, Claude Code skills
@@ -177,6 +181,15 @@ npm run dev -- debug <txhash> --rpc <url> # Custom RPC URL
 npm run dev -- simulate strategy --strategy grid --perp btc --levels 5 --spacing 100 --size 0.001 --leverage 2
 npm run dev -- simulate strategy --strategy mm --perp btc --size 0.001 --spread 0.1 --leverage 2
 npm run dev -- simulate strategy --strategy grid --perp btc --spacing 100 --size 0.001 --json
+
+# Analysis — Orderbook & Trades
+npm run dev -- show book --perp btc              # On-chain orderbook
+npm run dev -- show trades --perp btc            # Recent trades
+
+# Analysis — Liquidation Simulator
+npm run dev -- show liquidation --perp btc                # Pure-math sweep, funding projection
+npm run dev -- show liquidation --perp btc --fork         # Fork-verified liquidation (Anvil)
+npm run dev -- show liquidation --perp btc --fork --range 50  # Custom sweep range (%)
 
 # Deployment
 npm run dev -- deploy --implementation <addr> --operator <hot-wallet> --deposit 100

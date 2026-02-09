@@ -17,7 +17,7 @@ npm run build
 # Run CLI in development
 npm run dev -- <command>
 
-# Run tests (485+ tests)
+# Run tests (528+ tests)
 npm test
 
 # Run tests in watch mode
@@ -89,7 +89,9 @@ PerplBot/
 │   │   │   ├── forensics.ts     # Transaction forensics analysis
 │   │   │   ├── forensics-report.ts # Forensics terminal report
 │   │   │   ├── liquidation.ts   # Liquidation price simulator (pure math)
-│   │   │   └── liquidation-report.ts # Liquidation terminal report
+│   │   │   ├── liquidation-report.ts # Liquidation terminal report
+│   │   │   ├── strategy-sim.ts  # Strategy dry-run simulation
+│   │   │   └── strategy-report.ts # Strategy simulation report
 │   │   ├── state/              # State management
 │   │   │   └── exchange.ts     # Exchange state tracking
 │   │   ├── config.ts           # Environment config
@@ -98,6 +100,7 @@ PerplBot/
 │   │   ├── deploy.ts           # Deploy DelegatedAccount
 │   │   ├── trade.ts            # Execute trades
 │   │   ├── manage.ts           # Account management
+│   │   ├── simulate.ts         # Strategy dry-run simulation
 │   │   └── index.ts            # CLI entry point
 │   └── index.ts                # Main entry point
 ├── test/                       # Test files
@@ -107,7 +110,8 @@ PerplBot/
 │   ├── simulation/             # Dry-run simulation tests
 │   │   ├── dry-run.test.ts     # Report formatting & visualization tests
 │   │   ├── forensics.test.ts  # Forensics unit tests
-│   │   └── liquidation.test.ts # Liquidation simulator tests
+│   │   ├── liquidation.test.ts # Liquidation simulator tests
+│   │   └── strategy-sim.test.ts # Strategy simulation tests
 │   ├── orders.test.ts          # Order construction tests
 │   ├── positions.test.ts       # Position calculation tests
 │   ├── keyManager.test.ts      # Key management tests
@@ -134,6 +138,7 @@ PerplBot/
 - Add margin to position
 - Cancel orders
 - Transaction forensics (`debug <txhash>`): replay any tx on fork, decode events, explain what happened
+- Strategy dry-run (`simulate strategy`): fork chain, generate grid/MM orders, batch execute against real liquidity, report fills/PnL/gas
 - Dry-run simulation (`--dry-run`) with visual report:
   - ANSI-colored output (chalk, respects `NO_COLOR`)
   - Unicode balance bar charts (before/after comparison)
@@ -218,6 +223,18 @@ npm run dev -- trade open --perp btc --side long --size 0.1 --price 45000 --leve
 
 # Market order (IOC)
 npm run dev -- trade open --perp btc --side long --size 0.1 --price 46000 --leverage 10 --ioc
+```
+
+### Strategy Simulation
+```bash
+# Grid strategy dry-run
+npm run dev -- simulate strategy --strategy grid --perp btc --levels 5 --spacing 100 --size 0.001 --leverage 2
+
+# Market maker strategy dry-run
+npm run dev -- simulate strategy --strategy mm --perp btc --size 0.001 --spread 0.1 --leverage 2
+
+# JSON output
+npm run dev -- simulate strategy --strategy grid --perp btc --spacing 100 --size 0.001 --json
 ```
 
 ### Check Status
@@ -368,7 +385,7 @@ The `/reviewer` skill performs comprehensive code review with a senior engineer 
 
 **Verification Gate:**
 - `npm run typecheck` passes
-- `npm test` passes (485+ tests)
+- `npm test` passes (528+ tests)
 - No P0 or P1 issues remain
 - "Would a staff engineer approve this?"
 

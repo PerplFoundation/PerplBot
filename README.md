@@ -173,6 +173,11 @@ npm run dev -- debug <txhash>             # Replay tx on fork, decode events, ex
 npm run dev -- debug <txhash> --json      # Output raw JSON result
 npm run dev -- debug <txhash> --rpc <url> # Custom RPC URL
 
+# Strategy Dry-Run (requires Anvil)
+npm run dev -- simulate strategy --strategy grid --perp btc --levels 5 --spacing 100 --size 0.001 --leverage 2
+npm run dev -- simulate strategy --strategy mm --perp btc --size 0.001 --spread 0.1 --leverage 2
+npm run dev -- simulate strategy --strategy grid --perp btc --spacing 100 --size 0.001 --json
+
 # Deployment
 npm run dev -- deploy --implementation <addr> --operator <hot-wallet> --deposit 100
 ```

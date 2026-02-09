@@ -10,3 +10,5 @@ export * from "./forensics.js";
 export * from "./forensics-report.js";
 export * from "./liquidation.js";
 export * from "./liquidation-report.js";
+export * from "./strategy-sim.js";
+export * from "./strategy-report.js";

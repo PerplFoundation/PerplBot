@@ -50,6 +50,9 @@ let publicClient: PublicClient;
 let envConfig: EnvConfig;
 let mode: "operator" | "owner";
 
+// Last simulation's batch orders — used by "place orders" direct handler
+let lastBatchOrders: Array<{ market: string; side: "long" | "short"; size: number; price: number; leverage: number }> | undefined;
+
 // Only set in operator mode
 let operatorWallet: OperatorWallet | undefined;
 
@@ -92,6 +95,7 @@ export async function initSDK(): Promise<void> {
     try {
       await operatorWallet.connectApi();
       wsClient = operatorWallet.getWsClient();
+      wsClient?.on("error", (err) => console.warn("[chatbot] WebSocket error:", err.message));
       console.log("[chatbot] API connected (operator mode)");
     } catch (err) {
       console.warn("[chatbot] API connect failed (contract-only):", (err as Error).message);
@@ -162,6 +166,7 @@ export async function initSDK(): Promise<void> {
         const authCookies = apiClient.getAuthCookies();
         if (authNonce) {
           wsClient = new PerplWebSocketClient(API_CONFIG.wsUrl, API_CONFIG.chainId);
+          wsClient.on("error", (err) => console.warn("[chatbot] WebSocket error:", err.message));
           await wsClient.connectTrading(authNonce, authCookies || undefined);
           const summary = await portfolio.getAccountSummary();
           wsAccountId = Number(summary.accountId);
@@ -524,6 +529,11 @@ export async function batchOpenPositions(orders: Array<{
   };
 }
 
+// ============ Direct "place orders" support ============
+
+export function getLastBatchOrders() { return lastBatchOrders; }
+export function clearLastBatchOrders() { lastBatchOrders = undefined; }
+
 // ============ Stop Loss / Take Profit (Trigger Orders via WebSocket) ============
 
 export async function setStopLoss(params: { market: string; trigger_price: number; size?: number }) {
@@ -858,6 +868,9 @@ export async function simulateStrategy(params: {
     leverage: Number(od.leverageHdths) / 100,
     status: result.orderResults[i]?.status ?? "unknown",
   }));
+
+  // Store for direct "place orders" execution (bypasses Claude)
+  lastBatchOrders = batchOrders.map(({ market, side, size, price, leverage }) => ({ market, side, size, price, leverage }));
 
   return {
     ...strategySimResultToJson(result),

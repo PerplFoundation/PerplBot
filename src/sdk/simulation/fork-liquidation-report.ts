@@ -75,7 +75,7 @@ function printPosition(r: ForkLiquidationResult): void {
   console.log(`  Side:         ${sideStr}`);
   console.log(`  Size:         ${r.size.toFixed(5)} ${r.perpName}`);
   console.log(`  Entry Price:  ${fmtPrice(r.entryPrice)}`);
-  console.log(`  Collateral:   ${fmtUsd(r.collateral)} USDC`);
+  console.log(`  Collateral:   ${fmtUsd(r.collateral)} AUSD`);
   console.log(`  Leverage:     ${leverage}x`);
   console.log(`  Account ID:   ${r.accountId.toString()}`);
 }

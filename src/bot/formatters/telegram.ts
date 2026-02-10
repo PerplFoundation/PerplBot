@@ -95,7 +95,7 @@ export function formatStatus(
   lines.push("");
   lines.push("*Wallet*");
   lines.push(`ETH: ${escapeMarkdown(account.walletEth.toFixed(6))}`);
-  lines.push(`USDC: $${escapeMarkdown(account.walletUsdc.toFixed(2))}`);
+  lines.push(`AUSD: $${escapeMarkdown(account.walletUsdc.toFixed(2))}`);
 
   return lines.join("\n");
 }

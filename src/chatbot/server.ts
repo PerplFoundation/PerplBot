@@ -10,6 +10,7 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import Anthropic from "@anthropic-ai/sdk";
 import { tools, executeTool } from "./tools.js";
+import { getLastBatchOrders, clearLastBatchOrders, batchOpenPositions } from "./sdk-bridge.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
@@ -35,7 +36,7 @@ After get_liquidation_analysis, you MUST suggest TP/SL trigger orders using size
 Show: **Suggested TP/SL:** with \`sl <market> at <slPrice>\` and \`tp <market> at <tpPrice>\` as clickable commands. These use set_stop_loss/set_take_profit (trigger orders that wait for price). "sl"→set_stop_loss, "tp"→set_take_profit.
 After simulate_strategy, list the generated orders and ask: "Place these N orders? Reply \`place orders\` to confirm." On confirm → call batch_open_positions with the orders from the sim result (no re-confirm).
 
-Markets: BTC=16 ETH=32 SOL=48 MON=64 ZEC=256. Collateral: USDC (6 dec).`;
+Markets: BTC=16 ETH=32 SOL=48 MON=64 ZEC=256. Collateral: AUSD (6 dec).`;
 
 const MODEL = process.env.CHATBOT_MODEL || "claude-haiku-4-5-20251001";
 
@@ -175,6 +176,34 @@ async function handleChat(req: IncomingMessage, res: ServerResponse) {
   // Dynamic max_tokens based on message type
   const maxTokens = getMaxTokens(userText);
 
+  // Direct "place orders" — execute stored batch without routing through Claude
+  if (/^place\s+orders$/i.test(userText)) {
+    const orders = getLastBatchOrders();
+    console.log(`[req] place orders handler: ${orders ? orders.length + " orders stored" : "no orders stored"}`);
+    if (orders && orders.length > 0) {
+      try {
+        sseWrite(res, "text", { text: `Placing ${orders.length} orders...\n\n` });
+        sseWrite(res, "tool_call", { name: "batch_open_positions", input: { orders } });
+        const result = await batchOpenPositions(orders);
+        sseWrite(res, "tool_result", { name: "batch_open_positions", result });
+        const summary = `**${result.successful}/${result.totalOrders}** orders placed successfully.` +
+          (result.failed > 0 ? ` ${result.failed} failed.` : "");
+        sseWrite(res, "text", { text: summary });
+        sseWrite(res, "assistant_message", { text: `Placing ${orders.length} orders...\n\n[Called batch_open_positions: ${JSON.stringify(result)}]\n\n${summary}` });
+        clearLastBatchOrders();
+      } catch (err) {
+        const msg = `Order placement failed: ${(err as Error).message}`;
+        sseWrite(res, "text", { text: msg });
+        sseWrite(res, "assistant_message", { text: msg });
+      }
+      const elapsed = Date.now() - requestStart;
+      console.log(`[req] Done (${elapsed}ms)`);
+      sseWrite(res, "done", {});
+      res.end();
+      return;
+    }
+  }
+
   try {
     const fullText = await streamWithToolLoop(client, messages, res, maxTokens);
     // Send the full assistant text (including tool context) for client-side history
@@ -188,6 +217,77 @@ async function handleChat(req: IncomingMessage, res: ServerResponse) {
   console.log(`[req] Done (${elapsed}ms)`);
   sseWrite(res, "done", {});
   res.end();
+}
+
+// Tools that return results directly without Claude post-processing.
+// Reports/data display automatically — Claude commentary is redundant.
+const DIRECT_RETURN_TOOLS = new Set([
+  // Simulation
+  "simulate_strategy",
+  "dry_run_trade",
+  "debug_transaction",
+  // Analysis
+  "get_liquidation_analysis",
+  "get_orderbook",
+  "get_recent_trades",
+  "get_funding_info",
+  "get_trading_fees",
+]);
+
+/**
+ * Generate a follow-up prompt after a direct-return tool executes.
+ * Returns null if no follow-up is needed (tool result speaks for itself).
+ */
+function getDirectFollowUp(toolName: string, input: Record<string, unknown>, resultStr: string): string | null {
+  try {
+    const result = JSON.parse(resultStr);
+    if (result.error) return null;
+
+    switch (toolName) {
+      case "simulate_strategy": {
+        const count = result._batchOrders?.length || result.totalOrders || 0;
+        if (count > 0) {
+          return `\n\n**${count} orders generated.** Reply \`place orders\` to execute.`;
+        }
+        return null;
+      }
+
+      case "dry_run_trade": {
+        const side = input.side as string;
+        const size = input.size;
+        const market = (input.market as string).toLowerCase();
+        const price = input.is_market_order ? "market" : input.price;
+        const leverage = input.leverage;
+        const cmd = `${side} ${size} ${market} at ${price} ${leverage}x`;
+        return `\n\nExecute this trade? Reply \`${cmd}\` to confirm.`;
+      }
+
+      case "get_liquidation_analysis": {
+        const liqPrice = result.liquidationPrice;
+        const entryPrice = result.entryPrice;
+        const isLong = result.side === "long";
+        const market = (input.market as string).toLowerCase();
+        if (!liqPrice || !entryPrice) return null;
+
+        // SL: 75% of distance from entry toward liq (always between entry and liq)
+        // TP: same distance on the other side of entry (1:1 risk/reward)
+        const distance = Math.abs(liqPrice - entryPrice);
+        const slPrice = isLong
+          ? Math.round(entryPrice - distance * 0.75)
+          : Math.round(entryPrice + distance * 0.75);
+        const tpPrice = isLong
+          ? Math.round(entryPrice + distance * 0.75)
+          : Math.round(entryPrice - distance * 0.75);
+
+        return `\n\n**Suggested TP/SL:**\n\`sl ${market} at ${slPrice}\` — stop loss\n\`tp ${market} at ${tpPrice}\` — take profit`;
+      }
+
+      default:
+        return null;
+    }
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -273,10 +373,8 @@ async function streamWithToolLoop(
 
     if (toolUseBlocks.length === 0) break;
 
-    // Add assistant message with all content blocks
-    messages.push({ role: "assistant", content: contentBlocks });
-
-    // Execute each tool and build tool_result messages
+    // Execute each tool — check if all are direct-return
+    const allDirect = toolUseBlocks.every(tb => DIRECT_RETURN_TOOLS.has(tb.name));
     const toolResults: Anthropic.ToolResultBlockParam[] = [];
 
     for (const toolUse of toolUseBlocks) {
@@ -284,15 +382,14 @@ async function streamWithToolLoop(
 
       const { data: resultStr, report } = await executeTool(toolUse.name, toolUse.input as Record<string, unknown>);
 
-      // Send visual report to client (if available) before Claude's summary
+      // Send visual report to client (if available)
       if (report) {
         sseWrite(res, "report", { html: report });
       }
 
       sseWrite(res, "tool_result", { name: toolUse.name, result: JSON.parse(resultStr) });
 
-      // Include tool context in the text history so Claude remembers what happened.
-      // For simulate_strategy, store only the compact batch orders (not the massive full result).
+      // Record tool call in history
       if (toolUse.name === "simulate_strategy") {
         try {
           const parsed = JSON.parse(resultStr);
@@ -310,12 +407,29 @@ async function streamWithToolLoop(
         allTextParts.push(`[Called ${toolUse.name}: ${resultStr}]`);
       }
 
+      // For direct-return tools, generate follow-up prompt (if any)
+      if (allDirect) {
+        const followUp = getDirectFollowUp(toolUse.name, toolUse.input as Record<string, unknown>, resultStr);
+        if (followUp) {
+          sseWrite(res, "text", { text: followUp });
+          allTextParts.push(followUp);
+        }
+      }
+
       toolResults.push({
         type: "tool_result",
         tool_use_id: toolUse.id,
         content: resultStr,
       });
     }
+
+    // Direct-return tools: skip sending results back to Claude
+    if (allDirect) {
+      break;
+    }
+
+    // Non-direct tools: continue Claude conversation loop
+    messages.push({ role: "assistant", content: contentBlocks });
 
     // Add tool results as user message
     messages.push({ role: "user", content: toolResults });

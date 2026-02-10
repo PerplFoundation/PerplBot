@@ -175,7 +175,7 @@ function printMatchDetails(result: ForensicsResult): void {
     const fee = formatCNS(m.feeCNS);
     console.log(
       `  Fill ${i + 1}: ${lots.toFixed(5)} lots @ $${formatPrice(price)}` +
-      dim(` | maker #${m.makerAccountId} order #${m.makerOrderId} | fee: ${fee} USDC`)
+      dim(` | maker #${m.makerAccountId} order #${m.makerOrderId} | fee: ${fee} AUSD`)
     );
   }
 
@@ -189,7 +189,7 @@ function printMatchDetails(result: ForensicsResult): void {
   }
   const totalFees = result.matches.reduce((sum, m) => sum + m.feeCNS, 0n);
   if (totalFees > 0n) {
-    console.log(`  Total Fees:     ${formatCNS(totalFees)} USDC`);
+    console.log(`  Total Fees:     ${formatCNS(totalFees)} AUSD`);
   }
 }
 
@@ -205,13 +205,13 @@ function printAccountChanges(result: ForensicsResult): void {
   const balDiffRaw = postState.balanceCNS - preState.balanceCNS;
   const balDiff = formatSignedCNS(balDiffRaw);
   const balDiffColor = balDiffRaw >= 0n ? positive : negative;
-  console.log(`  Balance:        ${balPre} -> ${balPost} USDC (${balDiffColor(balDiff)})`);
+  console.log(`  Balance:        ${balPre} -> ${balPost} AUSD (${balDiffColor(balDiff)})`);
 
   const lockedPre = formatCNS(preState.lockedBalanceCNS);
   const lockedPost = formatCNS(postState.lockedBalanceCNS);
   const lockedDiffRaw = postState.lockedBalanceCNS - preState.lockedBalanceCNS;
   const lockedDiff = formatSignedCNS(lockedDiffRaw);
-  console.log(`  Locked Balance: ${lockedPre} -> ${lockedPost} USDC (${dim(lockedDiff)})`);
+  console.log(`  Locked Balance: ${lockedPre} -> ${lockedPost} AUSD (${dim(lockedDiff)})`);
 
   // Balance bar
   console.log(balanceBar(preState.balanceCNS, postState.balanceCNS));
@@ -230,7 +230,7 @@ function printPositionChanges(result: ForensicsResult): void {
     const lots = lnsToLot(preState.position.lotLNS, lotDecimals);
     const entry = pnsToPrice(preState.position.pricePNS, priceDecimals);
     const deposit = formatCNS(preState.position.depositCNS);
-    console.log(`  Before: ${side} ${lots.toFixed(5)} lots @ ${formatPrice(entry)} avg entry, margin: ${deposit} USDC`);
+    console.log(`  Before: ${side} ${lots.toFixed(5)} lots @ ${formatPrice(entry)} avg entry, margin: ${deposit} AUSD`);
   } else {
     console.log(`  Before: ${dim("No position")}`);
   }
@@ -240,7 +240,7 @@ function printPositionChanges(result: ForensicsResult): void {
     const lots = lnsToLot(postState.position.lotLNS, lotDecimals);
     const entry = pnsToPrice(postState.position.pricePNS, priceDecimals);
     const deposit = formatCNS(postState.position.depositCNS);
-    console.log(`  After:  ${side} ${lots.toFixed(5)} lots @ ${formatPrice(entry)} avg entry, margin: ${deposit} USDC`);
+    console.log(`  After:  ${side} ${lots.toFixed(5)} lots @ ${formatPrice(entry)} avg entry, margin: ${deposit} AUSD`);
   } else {
     console.log(`  After:  ${dim("No position")}`);
   }
@@ -291,7 +291,7 @@ function printSummary(result: ForensicsResult): void {
     console.log(
       `  Your ${ot.toLowerCase()} for ${size.toFixed(5)} ${perpName} was ` +
       `filled against ${result.matches.length} maker(s) at avg ${price}. ` +
-      `Total fees: ${feeStr} USDC.`
+      `Total fees: ${feeStr} AUSD.`
     );
 
     if (result.postState.position) {

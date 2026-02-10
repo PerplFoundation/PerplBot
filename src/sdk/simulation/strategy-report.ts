@@ -227,7 +227,7 @@ export function printStrategySimReport(result: StrategySimResult): void {
   console.log(`  Resting:         ${warn(String(restingOrders))}`);
   console.log(`  Failed:          ${failedOrders > 0 ? fail(String(failedOrders)) : dim("0")}`);
   console.log(`  Filled Lots:     ${totalFilledLots.toFixed(5)}`);
-  console.log(`  Total Fees:      $${formatCNS(totalFeesCNS)} USDC`);
+  console.log(`  Total Fees:      $${formatCNS(totalFeesCNS)} AUSD`);
   console.log(`  Fee Rates:       taker ${result.takerFeePer100K}/100k, maker ${result.makerFeePer100K}/100k`);
 
   // Account changes
@@ -277,14 +277,14 @@ function printAccountDiff(pre: AccountSnapshot, post: AccountSnapshot): void {
   const balDiff = formatSignedCNS(balDiffRaw);
   const balDiffColor = balDiffRaw >= 0n ? positive : negative;
 
-  console.log(`  Balance:        ${balPre} -> ${balPost} USDC (${balDiffColor(balDiff)})`);
+  console.log(`  Balance:        ${balPre} -> ${balPost} AUSD (${balDiffColor(balDiff)})`);
 
   const lockedPre = formatCNS(pre.lockedBalanceCNS);
   const lockedPost = formatCNS(post.lockedBalanceCNS);
   const lockedDiffRaw = post.lockedBalanceCNS - pre.lockedBalanceCNS;
   const lockedDiff = formatSignedCNS(lockedDiffRaw);
 
-  console.log(`  Locked Balance: ${lockedPre} -> ${lockedPost} USDC (${dim(lockedDiff)})`);
+  console.log(`  Locked Balance: ${lockedPre} -> ${lockedPost} AUSD (${dim(lockedDiff)})`);
 }
 
 function printPositionDiff(
@@ -298,7 +298,7 @@ function printPositionDiff(
     const lots = lnsToLot(pre.position.lotLNS, lotDecimals);
     const entryPrice = pnsToPrice(pre.position.pricePNS, priceDecimals);
     const deposit = formatCNS(pre.position.depositCNS);
-    console.log(`  Before: ${side} ${lots.toFixed(5)} lots @ ${formatPrice(entryPrice)} avg entry, margin: ${deposit} USDC`);
+    console.log(`  Before: ${side} ${lots.toFixed(5)} lots @ ${formatPrice(entryPrice)} avg entry, margin: ${deposit} AUSD`);
   } else {
     console.log(`  Before: ${dim("No position")}`);
   }
@@ -308,7 +308,7 @@ function printPositionDiff(
     const lots = lnsToLot(post.position.lotLNS, lotDecimals);
     const entryPrice = pnsToPrice(post.position.pricePNS, priceDecimals);
     const deposit = formatCNS(post.position.depositCNS);
-    console.log(`  After:  ${side} ${lots.toFixed(5)} lots @ ${formatPrice(entryPrice)} avg entry, margin: ${deposit} USDC`);
+    console.log(`  After:  ${side} ${lots.toFixed(5)} lots @ ${formatPrice(entryPrice)} avg entry, margin: ${deposit} AUSD`);
   } else {
     console.log(`  After:  ${dim("No position")}`);
   }

@@ -75,7 +75,7 @@ function printPosition(r: LiquidationSimResult): void {
   console.log(`  Side:         ${sideStr}`);
   console.log(`  Size:         ${fmtSize(r.size)} ${r.perpName}`);
   console.log(`  Entry Price:  ${fmtPrice(r.entryPrice)}`);
-  console.log(`  Collateral:   ${fmtUsd(r.collateral)} USDC`);
+  console.log(`  Collateral:   ${fmtUsd(r.collateral)} AUSD`);
   console.log(`  Leverage:     ${r.currentLeverage.toFixed(2)}x`);
 }
 
@@ -85,7 +85,7 @@ function printMarket(r: LiquidationSimResult): void {
   console.log(`  Mark Price:   ${fmtPrice(r.currentMarkPrice)}`);
   console.log(`  Oracle Price: ${fmtPrice(r.oraclePrice)}`);
   console.log(`  PnL:          ${colorPnl(r.currentPnl, fmtSignedUsd(r.currentPnl))}`);
-  console.log(`  Equity:       ${fmtUsd(r.currentEquity)} USDC`);
+  console.log(`  Equity:       ${fmtUsd(r.currentEquity)} AUSD`);
   console.log(`  Margin Ratio: ${(r.currentMarginRatio * 100).toFixed(2)}%`);
 }
 

@@ -41,6 +41,7 @@ import {
   type StrategySimConfig,
 } from "../sdk/index.js";
 import { OrderType, PositionType, type OrderDesc } from "../sdk/contracts/Exchange.js";
+import type { OrderRequest } from "../sdk/api/types.js";
 import { captureConsole, ansiToHtml } from "./ansi-html.js";
 
 // Singleton state
@@ -59,6 +60,41 @@ let operatorWallet: OperatorWallet | undefined;
 // WebSocket client for trigger orders (SL/TP) — set during init
 let wsClient: PerplWebSocketClient | undefined;
 let wsAccountId: number | undefined;
+
+/**
+ * Submit a market order via WS API, then verify the fill on-chain.
+ * WS submission is instant (no gas), on-chain verification confirms the fill.
+ */
+async function submitViaApiAndVerify(
+  request: Omit<OrderRequest, "mt">,
+  perpId: bigint,
+  preBefore: { lotLNS: bigint; positionType: number },
+): Promise<{ filled: boolean; txHash?: string }> {
+  if (!wsClient) throw new Error("WebSocket not connected");
+
+  const rq = request.rq || Date.now();
+  wsClient.submitOrder({ ...request, rq });
+  console.log(`[api] Order submitted (requestId: ${rq}), verifying on-chain...`);
+
+  // Poll on-chain position for up to 10 seconds to confirm fill
+  const accountSummary = await portfolio.getAccountSummary();
+  for (let i = 0; i < 10; i++) {
+    await new Promise(r => setTimeout(r, 1000));
+    try {
+      const { position } = await exchange.getPosition(perpId, accountSummary.accountId);
+      // Position changed = order filled
+      if (position.lotLNS !== preBefore.lotLNS || position.positionType !== preBefore.positionType) {
+        console.log(`[api] Fill confirmed on-chain after ${i + 1}s`);
+        return { filled: true };
+      }
+    } catch {
+      // position query failed, keep polling
+    }
+  }
+
+  console.log(`[api] No fill detected after 10s`);
+  return { filled: false };
+}
 
 const PERP_NAMES: Record<string, bigint> = {
   BTC: PERPETUALS.BTC,
@@ -312,9 +348,23 @@ export async function openPosition(params: {
 }) {
   const perpId = resolvePerpId(params.market);
   const perpInfo = await portfolio.getMarket(perpId);
-  const pricePNS = priceToPNS(params.price, BigInt(perpInfo.priceDecimals));
+  const priceDecimals = BigInt(perpInfo.priceDecimals);
   const lotLNS = lotToLNS(params.size, BigInt(perpInfo.lotDecimals));
   const leverageH = leverageToHdths(params.leverage);
+
+  // For market orders, auto-correct slippage direction if Claude got it wrong
+  let effectivePrice = params.price;
+  if (params.is_market_order) {
+    const markPrice = perpInfo.markPrice;
+    if (params.side === "long" && effectivePrice < markPrice * 0.95) {
+      // Long slippage price too low — recalculate: mark + 1.5%
+      effectivePrice = Math.round(markPrice * 1.015 * 100) / 100;
+    } else if (params.side === "short" && effectivePrice > markPrice * 1.05) {
+      // Short slippage price too high — recalculate: mark - 1.5%
+      effectivePrice = Math.round(markPrice * 0.985 * 100) / 100;
+    }
+  }
+  const pricePNS = priceToPNS(effectivePrice, priceDecimals);
 
   let txHash: string;
 
@@ -335,27 +385,36 @@ export async function openPosition(params: {
     }
   } else if (params.is_market_order && wsClient && wsAccountId !== undefined) {
     // Owner mode, market order → WS API (takes liquidity, faster matching)
+    // Capture pre-position state for on-chain verification
+    const accountSummary = await portfolio.getAccountSummary();
+    const { position: prePos } = await exchange.getPosition(perpId, accountSummary.accountId);
+
     const lastBlock = Number(await publicClient.getBlockNumber()) + 1000;
     const orderType = params.side === "long" ? 1 : 2; // OpenLong : OpenShort
-    const requestId = wsClient.submitOrder({
-      rq: Date.now(),
-      mkt: Number(perpId),
-      acc: wsAccountId,
-      t: orderType as never,
-      p: Number(pricePNS),
-      s: Number(lotLNS),
-      fl: 4 as never, // IOC
-      lv: Number(leverageH),
-      lb: lastBlock,
-    });
+    const result = await submitViaApiAndVerify(
+      {
+        rq: Date.now(),
+        mkt: Number(perpId),
+        acc: wsAccountId,
+        t: orderType as never,
+        p: Number(pricePNS),
+        s: Number(lotLNS),
+        fl: 4 as never, // IOC
+        lv: Number(leverageH),
+        lb: lastBlock,
+      },
+      perpId,
+      { lotLNS: prePos.lotLNS, positionType: prePos.positionType },
+    );
     return {
-      success: true,
-      requestId,
+      success: result.filled,
+      txHash: result.txHash,
+      status: result.filled ? "filled" : "no fill detected",
       route: "api",
       market: params.market.toUpperCase(),
       side: params.side,
       size: params.size,
-      price: params.price,
+      price: effectivePrice,
       leverage: params.leverage,
       type: "market",
     };
@@ -453,22 +512,27 @@ export async function closePosition(params: {
     // Owner mode, market close → WS API (takes liquidity, faster matching)
     const lastBlock = Number(await publicClient.getBlockNumber()) + 1000;
     const apiOrderType = isLong ? 3 : 4; // CloseLong : CloseShort
-    const requestId = wsClient.submitOrder({
-      rq: Date.now(),
-      mkt: Number(perpId),
-      acc: wsAccountId,
-      t: apiOrderType as never,
-      p: Number(pricePNS),
-      s: Number(rawLotLNS),
-      fl: 4 as never, // IOC
-      lv: 0,
-      lb: lastBlock,
-    });
+    const result = await submitViaApiAndVerify(
+      {
+        rq: Date.now(),
+        mkt: Number(perpId),
+        acc: wsAccountId,
+        t: apiOrderType as never,
+        p: Number(pricePNS),
+        s: Number(rawLotLNS),
+        fl: 4 as never, // IOC
+        lv: 0,
+        lb: lastBlock,
+      },
+      perpId,
+      { lotLNS: position.lotLNS, positionType: position.positionType },
+    );
     const closedSize = Number(rawLotLNS) / Number(10n ** lotDecimals);
     const closePrice = Number(pricePNS) / Number(10n ** priceDecimals);
     return {
-      success: true,
-      requestId,
+      success: result.filled,
+      txHash: result.txHash,
+      status: result.filled ? "filled" : "no fill detected",
       route: "api",
       market: params.market.toUpperCase(),
       side: isLong ? "long" : "short",

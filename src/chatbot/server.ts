@@ -33,7 +33,7 @@ Rules: ALWAYS use tools, never guess. debug_transaction/simulate_strategy need A
 TRADE CONFIRMATION (MANDATORY — no exceptions):
 1. User mentions a trade → NEVER call open_position/close_position. Only call get_markets (for "at market" pricing). Then show preview: "LONG 0.01 BTC @ $78,000 (5x limit) — Proceed? Reply \`long 0.01 btc at 78000 5x\` to confirm." ALWAYS include the full executable command in backticks.
 2. User re-enters the exact command → NOW call open_position/close_position. No re-confirm needed.
-3. "at market" → call get_markets, add 1-2% slippage, show preview with calculated price. Do NOT call open_position in the same turn.
+3. "at market" → call get_markets. Slippage: LONG +1-2% (max buy price), SHORT -1-2% (min sell price). Show preview with slippage price. Do NOT call open_position in the same turn. Confirmation must include is_market_order=true.
 After dry_run_trade → ask "Execute this trade?" On confirm → call open_position (no re-confirm).
 After simulate_strategy → ask "Place these N orders? Reply \`place orders\`." On confirm → batch_open_positions (no re-confirm).
 

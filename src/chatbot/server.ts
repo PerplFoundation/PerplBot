@@ -13,79 +13,28 @@ import { tools, executeTool } from "./tools.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-const SYSTEM_PROMPT = `You are PerplBot, a trading terminal for Perpl DEX on Monad testnet. You ONLY execute Perpl commands. You do NOT answer general questions, chat, or do anything unrelated to Perpl trading.
+// Compact system prompt — sent with every request, cached via cache_control
+const SYSTEM_PROMPT = `PerplBot: Perpl DEX terminal on Monad testnet. ONLY Perpl commands. Non-Perpl → "I only handle Perpl commands. Type **help** to see what I can do."
 
-If the user asks something unrelated to Perpl, respond: "I only handle Perpl commands. Type **help** to see what I can do."
+On "help", show EXACT list:
+**Portfolio**: \`show account\` \`show positions\` \`show markets\` \`show orders\`
+**Analysis**: \`btc liquidation analysis\` \`eth funding rate\` \`btc fees\` \`btc orderbook\` \`recent btc trades\`
+**Trading** *(confirms first)*: \`long 0.01 btc at 78000 5x\` \`short 1 eth at market 10x\` \`close my btc\` \`cancel btc order 123\`
+**Simulation**: \`dry run long 0.01 btc at 78000 5x\` \`simulate grid btc\` \`simulate mm btc\` \`debug 0x...\`
+Shorthand: long/buy, short/sell, close/exit | btc,eth,sol,mon,zec | "at 78000"/"@ market" | "5x"
+CLI-only: deposit, withdraw
 
-## Commands
+Style: Concise. Tables for multi-row. $XX,XXX.XX for USD. Reports from analysis/sim tools display automatically — add 1-2 line takeaway only, never repeat report data.
 
-When user types "help" or asks what you can do, show this EXACT list:
+Rules: ALWAYS use tools, never guess. After dry_run_trade → ask "Execute this trade?" On confirm → call open_position with same params (no re-confirm). Write ops → one-line desc + "Proceed?" first. "at market" → get_markets for price, +1-2% slippage, is_market_order=true. debug_transaction/simulate_strategy need Anvil.
 
-**Portfolio**
-- \`show account\` — balance, equity, margin, PnL
-- \`show positions\` — all open positions with PnL
-- \`show markets\` — prices, funding rates, open interest
-- \`show orders\` / \`show btc orders\` — open resting orders
+Markets: BTC=16 ETH=32 SOL=48 MON=64 ZEC=256. Collateral: USDC (6 dec).`;
 
-**Analysis**
-- \`btc liquidation analysis\` — liquidation price, distance, funding impact
-- \`eth funding rate\` — funding rate and time to next funding
-- \`btc fees\` — maker and taker fee percentages
-- \`btc orderbook\` — on-chain order book (bids/asks)
-- \`recent btc trades\` — recent fills from on-chain events
+const MODEL = process.env.CHATBOT_MODEL || "claude-haiku-4-5-20251001";
 
-**Trading** *(confirms before executing)*
-- \`long 0.01 btc at 78000 5x\` — open long position
-- \`short 1 eth at market 10x\` — open short at market price
-- \`close my btc position\` — close entire position
-- \`close 0.05 btc at 72000\` — partial close at limit price
-- \`cancel btc order 123\` — cancel a resting order
-- \`cancel all btc orders\` — cancel all orders for a market
-
-**Simulation**
-- \`dry run long 0.01 btc at 78000 5x\` — simulate trade without executing
-- \`simulate grid btc 5 levels 100 spacing 0.001 size 2x\` — grid strategy dry-run
-- \`simulate mm btc 0.001 size 0.1% spread 2x\` — market maker dry-run
-- \`debug 0x...\` — replay and analyze a transaction
-
-**Shorthand**: long/buy, short/sell, close/exit | btc, eth, sol, mon, zec | "at 78000", "@ market" | "5x" | "maker only"
-
-**Not available here**: deposit, withdraw (require wallet signing via CLI)
-
-## Style
-
-- Extremely concise. No filler.
-- Tables for multi-row data.
-- Emoji: green_circle profit/long, red_circle loss/short, white_check_mark success, x error, warning risk.
-- Format: $XX,XXX.XX for USD, percentages with %.
-- Positions: "BTC LONG 0.21 @ $68,798 | PnL: green_circle +$321.22 (+11.1%) | 5x"
-- Trades: "LONG 0.01 BTC @ $78,000 (5x) — Proceed?"
-- Never repeat raw tool data.
-- Analysis/simulation tools (liquidation, dry-run, debug, strategy sim) display visual reports automatically. Just add a brief 1-2 line takeaway — do NOT reformat or repeat the report data.
-- Errors: one line + fix suggestion.
-
-## Rules
-
-- ALWAYS use tools. Never guess or calculate when a tool exists.
-- Liquidation → get_liquidation_analysis. Fees → get_trading_fees. Positions → get_positions. Risk → get_liquidation_analysis + get_positions.
-- Orderbook → get_orderbook. Recent trades → get_recent_trades. Debug tx → debug_transaction.
-- "dry run" / "simulate trade" → dry_run_trade. "simulate grid/mm" → simulate_strategy.
-- After dry_run_trade completes, ALWAYS ask: "Execute this trade?" If the user confirms, call open_position with the same parameters (market, side, size, price, leverage, is_market_order) — do NOT re-ask for confirmation since the dry run already showed them the details.
-- Read queries: execute immediately.
-- Write ops: ONE line description + "Proceed?" BEFORE calling tool.
-- "at market": call get_markets for price, add 1-2% slippage, is_market_order=true.
-- Note: debug_transaction, simulate_strategy require Anvil. If they fail with an Anvil error, tell the user Anvil is not installed.
-- dry_run_trade works without Anvil (basic pass/fail) but gives richer results with Anvil.
-
-## Markets
-
-BTC=16, ETH=32, SOL=48, MON=64, ZEC=256
-
-## Architecture
-
-Collateral: USDC (6 dec). Close positions use on-chain data (authoritative).`;
-
-const MODEL = process.env.CHATBOT_MODEL || "claude-sonnet-4-5-20250929";
+// Max conversation history messages to send (keeps costs down)
+const MAX_HISTORY = 6; // 3 exchanges
+const MAX_HISTORY_CONTEXTUAL = 12; // for follow-up queries
 
 let anthropic: Anthropic;
 
@@ -94,6 +43,60 @@ function getAnthropicClient(): Anthropic {
     anthropic = new Anthropic(); // Uses ANTHROPIC_API_KEY env var
   }
   return anthropic;
+}
+
+// --- Dynamic max_tokens based on message type ---
+function getMaxTokens(message: string): number {
+  const lower = message.toLowerCase();
+  // Help/docs need room for the full command list
+  if (lower === "help" || lower.includes("help") || lower.includes("guide") || lower.includes("commands")) return 800;
+  // Explanations
+  if (lower.includes("explain") || lower.includes("how does") || lower.includes("what is")) return 600;
+  // Most trading/query responses are short
+  return 400;
+}
+
+// --- Smart history limiting ---
+function trimHistory(messages: Anthropic.MessageParam[]): Anthropic.MessageParam[] {
+  if (messages.length <= MAX_HISTORY) return messages;
+
+  const lastUserMsg = messages[messages.length - 1];
+  const text = typeof lastUserMsg?.content === "string" ? lastUserMsg.content.toLowerCase() : "";
+
+  // Contextual follow-ups need more history
+  const needsContext = /continue|earlier|as i said|same|again|yes|no|proceed|execute|confirm/.test(text);
+  const limit = needsContext ? MAX_HISTORY_CONTEXTUAL : MAX_HISTORY;
+
+  if (messages.length <= limit) return messages;
+  return messages.slice(-limit);
+}
+
+// --- Token usage tracking ---
+let totalRequests = 0;
+let totalInputTokens = 0;
+let totalOutputTokens = 0;
+let totalCacheReadTokens = 0;
+let totalCacheCreateTokens = 0;
+
+function trackUsage(usage: { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number }) {
+  totalRequests++;
+  totalInputTokens += usage.input_tokens;
+  totalOutputTokens += usage.output_tokens;
+  totalCacheReadTokens += usage.cache_read_input_tokens ?? 0;
+  totalCacheCreateTokens += usage.cache_creation_input_tokens ?? 0;
+
+  // Log every 10 requests
+  if (totalRequests % 10 === 0) {
+    const inputCost = (totalInputTokens / 1_000_000) * 0.80;
+    const outputCost = (totalOutputTokens / 1_000_000) * 4;
+    const cacheReadCost = (totalCacheReadTokens / 1_000_000) * 0.08;
+    const cacheCreateCost = (totalCacheCreateTokens / 1_000_000) * 1;
+    const total = inputCost + outputCost + cacheReadCost + cacheCreateCost;
+    console.log(
+      `[cost] ${totalRequests} API calls | ${totalInputTokens} in / ${totalOutputTokens} out | ` +
+      `cache: ${totalCacheReadTokens} read, ${totalCacheCreateTokens} create | $${total.toFixed(4)}`,
+    );
+  }
 }
 
 interface ChatMessage {
@@ -151,14 +154,18 @@ async function handleChat(req: IncomingMessage, res: ServerResponse) {
   });
 
   const client = getAnthropicClient();
-  // Build message history for Anthropic
-  const messages: Anthropic.MessageParam[] = body.messages.map((m) => ({
+  // Build message history for Anthropic — trimmed to limit costs
+  const allMessages: Anthropic.MessageParam[] = body.messages.map((m) => ({
     role: m.role,
     content: m.content,
   }));
+  const messages = trimHistory(allMessages);
+
+  // Dynamic max_tokens based on message type
+  const maxTokens = getMaxTokens(userText);
 
   try {
-    const fullText = await streamWithToolLoop(client, messages, res);
+    const fullText = await streamWithToolLoop(client, messages, res, maxTokens);
     // Send the full assistant text (including tool context) for client-side history
     sseWrite(res, "assistant_message", { text: fullText });
   } catch (err) {
@@ -180,6 +187,7 @@ async function streamWithToolLoop(
   client: Anthropic,
   messages: Anthropic.MessageParam[],
   res: ServerResponse,
+  maxTokens: number,
 ): Promise<string> {
   const MAX_TOOL_ROUNDS = 10;
   // Accumulate ALL text across tool rounds for the client's history
@@ -193,9 +201,19 @@ async function streamWithToolLoop(
 
     const stream = client.messages.stream({
       model: MODEL,
-      max_tokens: 4096,
-      system: SYSTEM_PROMPT,
-      tools,
+      max_tokens: maxTokens,
+      system: [
+        {
+          type: "text",
+          text: SYSTEM_PROMPT,
+          cache_control: { type: "ephemeral" },
+        },
+      ],
+      tools: tools.map((t, i) =>
+        i === tools.length - 1
+          ? { ...t, cache_control: { type: "ephemeral" as const } }
+          : t,
+      ),
       messages,
     });
 
@@ -215,6 +233,9 @@ async function streamWithToolLoop(
     // Get the final message
     const finalMessage = await stream.finalMessage();
     stopReason = finalMessage.stop_reason;
+
+    // Track token usage for cost monitoring
+    trackUsage(finalMessage.usage as { input_tokens: number; output_tokens: number; cache_read_input_tokens?: number; cache_creation_input_tokens?: number });
 
     // Collect content blocks
     for (const block of finalMessage.content) {

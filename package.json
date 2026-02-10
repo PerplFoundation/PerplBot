@@ -23,6 +23,7 @@
     "deploy:all": "./scripts/deploy-all.sh",
     "bot": "tsx src/bot/index.ts",
     "chatbot": "FORCE_COLOR=1 tsx src/chatbot/index.ts",
+    "mcp": "tsx src/mcp/index.ts",
     "test:api": "tsx scripts/test-api.ts"
   },
   "keywords": [
@@ -36,13 +37,15 @@
   "license": "MIT",
   "dependencies": {
     "@anthropic-ai/sdk": "^0.74.0",
+    "@modelcontextprotocol/sdk": "^1.26.0",
     "better-sqlite3": "^12.6.2",
     "chalk": "^5.6.2",
     "commander": "^12.1.0",
     "dotenv": "^16.4.5",
     "telegraf": "^4.16.3",
     "viem": "^2.21.0",
-    "ws": "^8.18.0"
+    "ws": "^8.18.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

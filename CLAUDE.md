@@ -111,6 +111,11 @@ PerplBot/
 │   │   ├── server.ts           # HTTP server, SSE streaming, tool-use loop
 │   │   ├── ansi-html.ts        # ANSI → HTML report conversion
 │   │   └── public/index.html   # Self-contained chat UI
+│   ├── mcp/                    # MCP server (Model Context Protocol)
+│   │   ├── index.ts            # Entry point — init SDK, HTTP server
+│   │   ├── server.ts           # McpServer with 16 tool registrations
+│   │   ├── schemas.ts          # Zod input schemas for all tools
+│   │   └── ansi-text.ts        # HTML → plain text for reports
 │   └── index.ts                # Main entry point
 ├── test/                       # Test files
 │   ├── api/                    # API client tests

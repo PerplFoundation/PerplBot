@@ -159,10 +159,49 @@
     75% { content: '...'; }
   }
 
+  /* Clickable commands in assistant messages */
+  .message.assistant code.cmd {
+    cursor: pointer;
+    border: 1px solid transparent;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .message.assistant code.cmd:hover {
+    border-color: #1f6feb;
+    background: #1f6feb22;
+  }
+
+  #suggestions {
+    background: #161b22;
+    padding: 8px 20px 0;
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    border-top: 1px solid #30363d;
+  }
+
+  #suggestions:empty { display: none; }
+
+  .chip {
+    font-size: 12px;
+    padding: 4px 10px;
+    background: #21262d;
+    border: 1px solid #30363d;
+    border-radius: 14px;
+    color: #8b949e;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    white-space: nowrap;
+  }
+
+  .chip:hover {
+    border-color: #1f6feb;
+    color: #e1e4e8;
+  }
+
   #input-area {
     background: #161b22;
-    border-top: 1px solid #30363d;
-    padding: 16px 20px;
+    padding: 10px 20px 16px;
     display: flex;
     gap: 10px;
     flex-shrink: 0;
@@ -213,6 +252,7 @@
 
 <div id="chat-container"></div>
 
+<div id="suggestions"></div>
 <div id="input-area">
   <input type="text" id="user-input" placeholder="Ask about your positions, markets, or place a trade..." autocomplete="off">
   <button id="send-btn">Send</button>
@@ -222,17 +262,99 @@
 const chatContainer = document.getElementById('chat-container');
 const userInput = document.getElementById('user-input');
 const sendBtn = document.getElementById('send-btn');
+const suggestionsBar = document.getElementById('suggestions');
 
 // Conversation history sent to the server
 const messages = [];
+
+// Command history (up/down arrow)
+const commandHistory = [];
+let historyIndex = -1;
+let savedInput = '';
+
+// --- Command detection: patterns that look like executable commands ---
+const CMD_PATTERNS = [
+  /^show\s/i, /^long\s/i, /^short\s/i, /^buy\s/i, /^sell\s/i,
+  /^close\s/i, /^cancel\s/i, /^dry\s+run\s/i, /^simulate\s/i,
+  /^debug\s/i, /^help$/i, /^(btc|eth|sol|mon|zec)\s/i,
+  /^recent\s/i, /liquidation/i, /funding/i, /fees$/i, /orderbook$/i,
+];
+
+function looksLikeCommand(text) {
+  const t = text.trim();
+  return CMD_PATTERNS.some(p => p.test(t));
+}
+
+// --- Suggestion chips ---
+const DEFAULT_SUGGESTIONS = [
+  'show account', 'show positions', 'show markets',
+  'btc liquidation analysis', 'help',
+];
+
+const FOLLOW_UP_MAP = {
+  get_account_summary: ['show positions', 'show markets', 'btc liquidation analysis'],
+  get_positions: ['btc liquidation analysis', 'show account', 'close my btc position'],
+  get_markets: ['btc orderbook', 'recent btc trades', 'eth funding rate'],
+  get_open_orders: ['cancel btc order', 'show positions'],
+  get_funding_info: ['btc liquidation analysis', 'show positions'],
+  get_liquidation_analysis: ['show positions', 'show account', 'dry run long 0.01 btc at 78000 5x'],
+  get_trading_fees: ['show markets', 'long 0.01 btc at 78000 5x'],
+  get_orderbook: ['recent btc trades', 'long 0.01 btc at 78000 5x'],
+  get_recent_trades: ['btc orderbook', 'show markets'],
+  dry_run_trade: ['show positions', 'btc liquidation analysis'],
+  simulate_strategy: ['show positions', 'dry run long 0.01 btc at 78000 5x'],
+  debug_transaction: ['show positions', 'show account'],
+  open_position: ['show positions', 'btc liquidation analysis', 'show account'],
+  close_position: ['show positions', 'show account'],
+  cancel_order: ['show orders', 'show positions'],
+};
+
+let lastToolCalled = null;
+
+function renderSuggestions() {
+  const items = lastToolCalled && FOLLOW_UP_MAP[lastToolCalled]
+    ? FOLLOW_UP_MAP[lastToolCalled]
+    : DEFAULT_SUGGESTIONS;
+  suggestionsBar.innerHTML = items
+    .map(cmd => `<span class="chip" data-cmd="${cmd.replace(/"/g, '&quot;')}">${cmd}</span>`)
+    .join('');
+}
+
+suggestionsBar.addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  const cmd = chip.dataset.cmd;
+  userInput.value = cmd;
+  userInput.focus();
+});
+
+// --- Message rendering ---
 
 function addMessage(role, html) {
   const div = document.createElement('div');
   div.className = `message ${role}`;
   div.innerHTML = html;
+  // Make command-like inline code clickable
+  if (role === 'assistant') makeCodesClickable(div);
   chatContainer.appendChild(div);
   chatContainer.scrollTop = chatContainer.scrollHeight;
   return div;
+}
+
+function makeCodesClickable(container) {
+  container.querySelectorAll('code').forEach(el => {
+    // Skip code inside <pre> (code blocks)
+    if (el.parentElement && el.parentElement.tagName === 'PRE') return;
+    const text = el.textContent || '';
+    if (looksLikeCommand(text)) {
+      el.classList.add('cmd');
+      el.title = 'Click to use this command';
+      el.addEventListener('click', () => {
+        userInput.value = text;
+        userInput.focus();
+      });
+    }
+  });
 }
 
 function showLoading() {
@@ -287,23 +409,31 @@ function setEnabled(enabled) {
   if (enabled) userInput.focus();
 }
 
+// --- Send message ---
+
 async function sendMessage() {
   const text = userInput.value.trim();
   if (!text) return;
 
+  // Add to command history
+  commandHistory.push(text);
+  historyIndex = commandHistory.length;
+  savedInput = '';
+
   userInput.value = '';
   setEnabled(false);
+  lastToolCalled = null;
 
   // Show user message
   addMessage('user', text.replace(/</g, '&lt;').replace(/>/g, '&gt;'));
 
-  // Add to history
+  // Add to conversation history
   messages.push({ role: 'user', content: text });
 
   showLoading();
 
   let assistantText = '';
-  let fullHistoryText = ''; // Full text from server (includes tool context)
+  let fullHistoryText = '';
   let assistantDiv = null;
   let toolHtml = '';
 
@@ -324,7 +454,6 @@ async function sendMessage() {
 
       buffer += decoder.decode(value, { stream: true });
 
-      // Parse SSE events
       const lines = buffer.split('\n');
       buffer = lines.pop() || '';
 
@@ -342,6 +471,7 @@ async function sendMessage() {
               assistantDiv = addMessage('assistant', '');
             }
             assistantDiv.innerHTML = toolHtml + renderMarkdown(assistantText);
+            makeCodesClickable(assistantDiv);
             chatContainer.scrollTop = chatContainer.scrollHeight;
           } else if (eventType === 'tool_call') {
             hideLoading();
@@ -351,6 +481,7 @@ async function sendMessage() {
             toolHtml += `<span class="tool-badge">${data.name}</span> `;
             assistantDiv.innerHTML = toolHtml + renderMarkdown(assistantText);
             assistantText = '';
+            lastToolCalled = data.name;
             showLoading();
           } else if (eventType === 'report') {
             hideLoading();
@@ -363,10 +494,8 @@ async function sendMessage() {
             showLoading();
           } else if (eventType === 'tool_result') {
             hideLoading();
-            // Don't show raw JSON — Claude will summarize it visually
             showLoading();
           } else if (eventType === 'assistant_message') {
-            // Server sends full text including tool context for history
             fullHistoryText = data.text;
           } else if (eventType === 'error') {
             hideLoading();
@@ -385,35 +514,60 @@ async function sendMessage() {
     addMessage('assistant', `<p style="color:#f85149">Connection error: ${err.message}</p>`);
   }
 
-  // Use full history text (with tool context) for conversation history
   const historyText = fullHistoryText || assistantText;
   if (historyText) {
     messages.push({ role: 'assistant', content: historyText });
   }
 
+  renderSuggestions();
   setEnabled(true);
 }
 
+// --- Event listeners ---
+
 sendBtn.addEventListener('click', sendMessage);
+
 userInput.addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && !e.shiftKey) {
     e.preventDefault();
     sendMessage();
+  } else if (e.key === 'ArrowUp') {
+    if (commandHistory.length === 0) return;
+    e.preventDefault();
+    if (historyIndex === commandHistory.length) {
+      savedInput = userInput.value;
+    }
+    if (historyIndex > 0) {
+      historyIndex--;
+      userInput.value = commandHistory[historyIndex];
+    }
+  } else if (e.key === 'ArrowDown') {
+    if (commandHistory.length === 0) return;
+    e.preventDefault();
+    if (historyIndex < commandHistory.length - 1) {
+      historyIndex++;
+      userInput.value = commandHistory[historyIndex];
+    } else if (historyIndex === commandHistory.length - 1) {
+      historyIndex = commandHistory.length;
+      userInput.value = savedInput;
+    }
   }
 });
 
-// Show welcome message
+// --- Init ---
+
 addMessage('assistant', renderMarkdown(
 `**PerplBot** — Perpl DEX Trading Terminal (Monad Testnet)
 
 **Portfolio**: \`show account\` \`show positions\` \`show markets\` \`show orders\`
-**Analysis**: \`btc liquidation\` \`eth funding rate\` \`btc fees\` \`btc orderbook\` \`recent btc trades\`
+**Analysis**: \`btc liquidation analysis\` \`eth funding rate\` \`btc fees\` \`btc orderbook\` \`recent btc trades\`
 **Trading**: \`long 0.01 btc at 78000 5x\` \`close my btc\` \`cancel btc order 123\`
 **Simulation**: \`dry run long 0.01 btc at 78000 5x\` \`simulate grid btc\` \`debug 0x...\`
 
 Type **help** for full command list.`
 ));
 
+renderSuggestions();
 userInput.focus();
 </script>
 </body>

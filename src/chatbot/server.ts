@@ -22,6 +22,7 @@ On "help", show EXACT list:
 **Trading** *(confirms first)*: \`long 0.01 btc at 78000 5x\` \`short 1 eth at market 10x\` \`close my btc\` \`cancel btc order 123\`
 **Simulation**: \`dry run long 0.01 btc at 78000 5x\` \`simulate grid btc\` \`simulate mm btc\` \`debug 0x...\`
 Shorthand: long/buy, short/sell, close/exit | btc,eth,sol,mon,zec | "at 78000"/"@ market" | "5x"
+\`help trading\` \`help analysis\` \`help simulation\` \`help portfolio\` for detailed examples.
 CLI-only: deposit, withdraw
 
 Style: Concise. Tables for multi-row. $XX,XXX.XX for USD. Reports from analysis/sim tools display automatically — add 1-2 line takeaway only, never repeat report data.

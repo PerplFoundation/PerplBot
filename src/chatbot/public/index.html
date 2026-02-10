@@ -291,7 +291,7 @@ let savedInput = '';
 const CMD_PATTERNS = [
   /^show\s/i, /^long\s/i, /^short\s/i, /^buy\s/i, /^sell\s/i,
   /^close\s/i, /^cancel\s/i, /^dry\s+run\s/i, /^simulate\s/i,
-  /^debug\s/i, /^help$/i, /^(btc|eth|sol|mon|zec)\s/i,
+  /^debug\s/i, /^help$/i, /^help\s+\w/i, /^(btc|eth|sol|mon|zec)\s/i,
   /^recent\s/i, /liquidation/i, /funding/i, /fees$/i, /orderbook$/i,
 ];
 
@@ -481,6 +481,101 @@ function setEnabled(enabled) {
   if (enabled) userInput.focus();
 }
 
+// --- Topic help (handled client-side, zero API cost) ---
+
+const TOPIC_HELP = {
+  portfolio: {
+    title: 'Portfolio Commands',
+    commands: [
+      { cmd: 'show account', desc: 'Balance, equity, margin, available balance, unrealized PnL' },
+      { cmd: 'show positions', desc: 'All open positions with entry, mark price, PnL, leverage' },
+      { cmd: 'show markets', desc: 'All markets with mark/oracle price, funding rate, open interest' },
+      { cmd: 'show orders', desc: 'All resting (open) orders across markets' },
+      { cmd: 'show btc orders', desc: 'Resting orders for a specific market' },
+    ],
+  },
+  account: { alias: 'portfolio' },
+  positions: { alias: 'portfolio' },
+  markets: { alias: 'portfolio' },
+  orders: { alias: 'portfolio' },
+  analysis: {
+    title: 'Analysis Commands',
+    commands: [
+      { cmd: 'btc liquidation analysis', desc: 'Liquidation price, distance (% and $), margin ratio, funding drift' },
+      { cmd: 'eth liquidation analysis', desc: 'Same for any market — replace with eth, sol, mon, zec' },
+      { cmd: 'btc funding rate', desc: 'Current funding rate, time to next funding period' },
+      { cmd: 'btc fees', desc: 'Maker and taker fee percentages' },
+      { cmd: 'btc orderbook', desc: 'On-chain order book with bid/ask levels and sizes' },
+      { cmd: 'recent btc trades', desc: 'Recent fill events from on-chain logs' },
+    ],
+  },
+  liquidation: { alias: 'analysis' },
+  funding: { alias: 'analysis' },
+  fees: { alias: 'analysis' },
+  orderbook: { alias: 'analysis' },
+  trades: { alias: 'analysis' },
+  trading: {
+    title: 'Trading Commands',
+    desc: 'All trades require confirmation before execution.',
+    commands: [
+      { cmd: 'long 0.01 btc at 78000 5x', desc: 'Open long — limit order at $78,000 with 5x leverage' },
+      { cmd: 'long 0.01 btc at market 5x', desc: 'Open long — market order (IOC) with slippage' },
+      { cmd: 'short 1 eth at 4000 10x', desc: 'Open short — limit order' },
+      { cmd: 'short 0.5 sol at market 3x', desc: 'Open short — market order' },
+      { cmd: 'close my btc position', desc: 'Close entire BTC position at market' },
+      { cmd: 'close 0.005 btc at 72000', desc: 'Partial close — limit order' },
+      { cmd: 'cancel btc order 123', desc: 'Cancel a specific resting order by ID' },
+      { cmd: 'cancel all btc orders', desc: 'Cancel all resting orders for a market' },
+    ],
+  },
+  long: { alias: 'trading' },
+  short: { alias: 'trading' },
+  buy: { alias: 'trading' },
+  sell: { alias: 'trading' },
+  close: { alias: 'trading' },
+  cancel: { alias: 'trading' },
+  open: { alias: 'trading' },
+  simulation: {
+    title: 'Simulation Commands',
+    desc: 'Dry-run and debug without risking real funds. Some require Anvil.',
+    commands: [
+      { cmd: 'dry run long 0.01 btc at 78000 5x', desc: 'Simulate opening a long — shows gas, fills, state changes' },
+      { cmd: 'dry run short 0.5 sol at 200 3x', desc: 'Simulate any trade before executing' },
+      { cmd: 'simulate grid btc 5 levels 100 spacing 0.001 size 2x', desc: 'Grid strategy — 5 levels, $100 spacing, 0.001 BTC per level' },
+      { cmd: 'simulate mm btc 0.001 size 0.1% spread 2x', desc: 'Market maker strategy dry-run' },
+      { cmd: 'debug 0x2ceb6f45d1a8ef6c369476f8fa6bcea36aaa70b02ed957d257a7fbaa75679270', desc: 'Replay a tx — decode events, state changes, failure analysis' },
+    ],
+  },
+  'dry run': { alias: 'simulation' },
+  simulate: { alias: 'simulation' },
+  debug: { alias: 'simulation' },
+  grid: { alias: 'simulation' },
+  mm: { alias: 'simulation' },
+};
+
+function handleTopicHelp(text) {
+  const lower = text.toLowerCase().trim();
+  // Match "help <topic>" or "help <topic> commands"
+  const match = lower.match(/^help\s+(.+?)(?:\s+commands?)?$/);
+  if (!match) return null;
+
+  const topic = match[1].trim();
+  let entry = TOPIC_HELP[topic];
+  if (!entry) return null;
+  // Resolve aliases
+  if (entry.alias) entry = TOPIC_HELP[entry.alias];
+  if (!entry || entry.alias) return null;
+
+  // Build markdown
+  let md = `**${entry.title}**`;
+  if (entry.desc) md += `\n${entry.desc}`;
+  md += '\n';
+  for (const c of entry.commands) {
+    md += `\n- \`${c.cmd}\` — ${c.desc}`;
+  }
+  return md;
+}
+
 // --- Send message ---
 
 async function sendMessage() {
@@ -491,6 +586,15 @@ async function sendMessage() {
   commandHistory.push(text);
   historyIndex = commandHistory.length;
   savedInput = '';
+
+  // Check for topic-specific help (handled client-side)
+  const topicHelp = handleTopicHelp(text);
+  if (topicHelp) {
+    userInput.value = '';
+    addMessage('user', text.replace(/</g, '&lt;').replace(/>/g, '&gt;'));
+    addMessage('assistant', renderMarkdown(topicHelp));
+    return;
+  }
 
   userInput.value = '';
   setEnabled(false);
@@ -636,7 +740,7 @@ addMessage('assistant', renderMarkdown(
 **Trading**: \`long 0.01 btc at 78000 5x\` \`close my btc\` \`cancel btc order 123\`
 **Simulation**: \`dry run long 0.01 btc at 78000 5x\` \`simulate grid btc\` \`debug 0x...\`
 
-Type **help** for full command list.`
+Type **help** for full list, or \`help trading\` \`help analysis\` \`help simulation\` \`help portfolio\` for details.`
 ));
 
 renderSuggestions();
